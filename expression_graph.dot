@@ -1,22 +1,120 @@
 digraph ExpressionGraph {
-  6132199376 [label="data: 3\nlabel: output\nop: +
+  6092926560 [label="data: 0\nlabel: dummy tail node
+ grad: 0", shape=box, style=filled, fillcolor=none];
+  5762990240 -> 6092926560;
+  5762990976 -> 6092926560;
+  5762990240 [label="data: 15\nop: +
  grad: 1", shape=box, style=filled, fillcolor=none];
-  6132199552 -> 6132199376;
-  6132199464 -> 6132199376;
-  6132199552 [label="data: 6\nlabel: a times b\nop: *
+  5762993360 -> 5762990240;
+  5762993152 -> 5762990240;
+  5762990976 [label="data: 15\nop: +
  grad: 1", shape=box, style=filled, fillcolor=none];
-  6132199920 -> 6132199552;
-  6132199832 -> 6132199552;
-  6132199464 [label="data: -3\nlabel: c times d\nop: *
+  5762995552 -> 5762990976;
+  5762995344 -> 5762990976;
+  5762993360 [label="data: 5\nop: *
  grad: 1", shape=box, style=filled, fillcolor=none];
-  6132199728 -> 6132199464;
-  6132199640 -> 6132199464;
-  6132199920 [label="data: 2
- grad: 3", shape=box, style=filled, fillcolor=none];
-  6132199832 [label="data: 3
- grad: 2", shape=box, style=filled, fillcolor=none];
-  6132199728 [label="data: -3
+  5745165536 -> 5762993360;
+  5762990784 -> 5762993360;
+  5762993152 [label="data: 10\nop: +
  grad: 1", shape=box, style=filled, fillcolor=none];
-  6132199640 [label="data: 1
- grad: -3", shape=box, style=filled, fillcolor=none];
+  5762992944 -> 5762993152;
+  5762992736 -> 5762993152;
+  5762995552 [label="data: 5\nop: *
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5745165536 -> 5762995552;
+  5762991488 -> 5762995552;
+  5762995344 [label="data: 10\nop: +
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5762995136 -> 5762995344;
+  5762994928 -> 5762995344;
+  5745165536 [label="data: 5\nlabel: input
+ grad: 3", shape=box, style=filled, fillcolor=lightblue];
+  5762990784 [label="data: 1\nlabel: weight
+ grad: 5", shape=box, style=filled, fillcolor=lightgreen];
+  5762992944 [label="data: 4\nop: *
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5745165440 -> 5762992944;
+  5762990688 -> 5762992944;
+  5762992736 [label="data: 6\nop: +
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5762992528 -> 5762992736;
+  5762992320 -> 5762992736;
+  5762991488 [label="data: 1\nlabel: weight
+ grad: 5", shape=box, style=filled, fillcolor=lightgreen];
+  5762995136 [label="data: 4\nop: *
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5745165440 -> 5762995136;
+  5762991392 -> 5762995136;
+  5762994928 [label="data: 6\nop: +
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5762994720 -> 5762994928;
+  5762994512 -> 5762994928;
+  5745165440 [label="data: 4\nlabel: input
+ grad: 3", shape=box, style=filled, fillcolor=lightblue];
+  5762990688 [label="data: 1\nlabel: weight
+ grad: 4", shape=box, style=filled, fillcolor=lightgreen];
+  5762992528 [label="data: 3\nop: *
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5745165344 -> 5762992528;
+  5762990560 -> 5762992528;
+  5762992320 [label="data: 3\nop: +
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5762992128 -> 5762992320;
+  5762991936 -> 5762992320;
+  5762991392 [label="data: 1\nlabel: weight
+ grad: 4", shape=box, style=filled, fillcolor=lightgreen];
+  5762994720 [label="data: 3\nop: *
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5745165344 -> 5762994720;
+  5762991296 -> 5762994720;
+  5762994512 [label="data: 3\nop: +
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5762994304 -> 5762994512;
+  5762994096 -> 5762994512;
+  5745165344 [label="data: 3\nlabel: input
+ grad: 3", shape=box, style=filled, fillcolor=lightblue];
+  5762990560 [label="data: 1\nlabel: weight
+ grad: 3", shape=box, style=filled, fillcolor=lightgreen];
+  5762992128 [label="data: 2\nop: *
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5745165248 -> 5762992128;
+  5762990448 -> 5762992128;
+  5762991936 [label="data: 1\nop: +
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5762991744 -> 5762991936;
+  5762991648 -> 5762991936;
+  5762991296 [label="data: 1\nlabel: weight
+ grad: 3", shape=box, style=filled, fillcolor=lightgreen];
+  5762994304 [label="data: 2\nop: *
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5745165248 -> 5762994304;
+  5762991184 -> 5762994304;
+  5762994096 [label="data: 1\nop: +
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5762993872 -> 5762994096;
+  5762993776 -> 5762994096;
+  5745165248 [label="data: 2\nlabel: input
+ grad: 3", shape=box, style=filled, fillcolor=lightblue];
+  5762990448 [label="data: 1\nlabel: weight
+ grad: 2", shape=box, style=filled, fillcolor=lightgreen];
+  5762991744 [label="data: 1\nop: *
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5745165152 -> 5762991744;
+  5762990336 -> 5762991744;
+  5762991648 [label="data: 0
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5762991184 [label="data: 1\nlabel: weight
+ grad: 2", shape=box, style=filled, fillcolor=lightgreen];
+  5762993872 [label="data: 1\nop: *
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5745165152 -> 5762993872;
+  5762991072 -> 5762993872;
+  5762993776 [label="data: 0
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  5745165152 [label="data: 1\nlabel: input
+ grad: 3", shape=box, style=filled, fillcolor=lightblue];
+  5762990336 [label="data: 1\nlabel: weight
+ grad: 1", shape=box, style=filled, fillcolor=lightgreen];
+  5762991072 [label="data: 1\nlabel: weight
+ grad: 1", shape=box, style=filled, fillcolor=lightgreen];
 }

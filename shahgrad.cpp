@@ -178,7 +178,6 @@ class Neuron{
                 this->weights.push_back(new Value(1.0));
                 weights[i]->label = "weight";
             }
-            cout << "weight vector length "<< this->weights.size() << endl;
         }
 
         void forward(vector<Value*> & input){
@@ -202,6 +201,44 @@ class Linear{
     Created a fully connected layer of neurons. Feeds an input vector through all the neurons in the layer during the forward pass, and backprops 
     gradients throughout the layer during the backward pass.
     */
+    public:
+        int input_size;
+        vector<Neuron*> output_layer;
+        vector<Value*> outputs;
+
+        Linear(int input_size, int output_size){
+            this->input_size = input_size;
+            for(int i = 0; i < output_size; i++){
+                output_layer.push_back(new Neuron(input_size));
+                outputs.push_back(&output_layer[i]->out);
+            }
+        }
+        
+        void forward(vector<Value*> & inputs){
+            for(int i = 0; i < output_layer.size(); i++){
+                Neuron* n = output_layer[i];
+                n->forward(inputs);
+            }
+        }
+        void backward(vector<float> grads){
+            //accumulate gradients and pass to output neurons.
+            for(int i = 0; i < outputs.size(); i++){
+                for(int j = 0; j < grads.size(); j++){
+                    outputs[i]->grad += grads[j];
+                }
+                //backward pass gradients through each neuron
+                output_layer[i]->backward();
+            }  
+        }
+        void visualizeGraph(){
+            //create a dummy tail node containing pointers to all output nodes for the visualizer. Visualizer can only traverse the graph backwards starting from a single node.
+            Value dummy_tail = Value(0.0);
+            dummy_tail.label = "dummy tail node";
+            for(int i = 0; i < outputs.size(); i++){
+                dummy_tail.prev.push_back(outputs[i]);
+            }
+            dummy_tail.visualizeGraph();
+        }
 };
 
 int main(){
@@ -225,7 +262,9 @@ int main(){
     //backprop and visualize
     res.backprop();
     res.visualizeGraph();
-
+    /*
+    Demo of a single neuron forward/backward pass + visualization
+    */
     Neuron* n = new Neuron(5);
     vector<Value*> inputs;
     inputs.push_back(new Value(1.0));
@@ -239,8 +278,18 @@ int main(){
     }
     n->forward(inputs);
     n->backward();
-    //n->out.visualizeGraph();
-
+    n->out.visualizeGraph();
+    /*
+    Demo of a Linear layer
+    */
+    Linear l = Linear(5, 2);
+    l.forward(inputs);
+    cout << (l.outputs[0]->data) << endl;
+    vector<float> out_grads;
+    out_grads.push_back(1.0);
+    out_grads.push_back(1.0);
+    l.backward(out_grads);
+    l.visualizeGraph();
     return 0;
 };
 
