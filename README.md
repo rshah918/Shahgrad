@@ -39,7 +39,7 @@ Made this to better understand how pytorch/tensorflow work under the hood.
 
 
 ### Neuron Demo
-#### Instantiate and forward pass inputs through a neuron, and view its expression graph and gradients: 
+#### Forward pass inputs through a neuron, and view its expression graph and gradients: 
 ```
     //instantiate neuron with input size of 5
     Neuron* n = new Neuron(5);
