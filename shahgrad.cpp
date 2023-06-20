@@ -132,6 +132,7 @@ class Value{
                     dotFile << "\\nlabel: " << node->label;
                 if (!node->operation.empty())
                     dotFile << "\\nop: " << node->operation;
+                dotFile << "\n grad: " << node->grad;
                 dotFile << "\", shape=box, style=filled, fillcolor=" << nodeColor << "];" << std::endl;
 
                 // Write edge information
@@ -206,22 +207,17 @@ class Linear{
 int main(){
     //Demonstration of the gradient engine
     //inputs
-    Value x1 = Value(2);
-    Value x2 = Value(3);
-    Value w1 = Value(-3);
-    Value w2 = Value(1);
-    Value bias = Value(6.8814);
+    Value a = Value(2);
+    Value b = Value(3);
+    Value c = Value(-3);
+    Value d = Value(1);
 
     //expression
-    Value x1w1 = x1* w1;
-    x1w1.label = "x1w1";
-    Value x2w2 = x2*w2;
-    x2w2.label = "x2w2";
-    Value x1w1x2w2 = (x1w1 + x2w2);
-    Value x1w1x2w2b = x1w1x2w2 + bias;
-    x1w1x2w2b.label = "x1w1 + x2w2 + bias";
-    Value res = x1w1x2w2b;
-
+    Value a_times_b = a * b;
+    a_times_b.label = "a times b";
+    Value c_times_d = c * d;
+    c_times_d.label = "c times d";
+    Value res = a_times_b + c_times_d;
     res.label = "output";
 
     res.grad = 1.0; //init root node grad to 1

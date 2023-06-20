@@ -1,19 +1,22 @@
 digraph ExpressionGraph {
-  6122794696 [label="data: 3.8814\nlabel: output\nop: +", shape=box, style=filled, fillcolor=none];
-  6122794872 -> 6122794696;
-  6122795136 -> 6122794696;
-  6122794872 [label="data: -3\nop: +", shape=box, style=filled, fillcolor=none];
-  6122795048 -> 6122794872;
-  6122794960 -> 6122794872;
-  6122795136 [label="data: 6.8814", shape=box, style=filled, fillcolor=none];
-  6122795048 [label="data: -6\nlabel: x1w1\nop: *", shape=box, style=filled, fillcolor=none];
-  6122795504 -> 6122795048;
-  6122795312 -> 6122795048;
-  6122794960 [label="data: 3\nlabel: x2w2\nop: *", shape=box, style=filled, fillcolor=none];
-  6122795416 -> 6122794960;
-  6122795224 -> 6122794960;
-  6122795504 [label="data: 2", shape=box, style=filled, fillcolor=none];
-  6122795312 [label="data: -3", shape=box, style=filled, fillcolor=none];
-  6122795416 [label="data: 3", shape=box, style=filled, fillcolor=none];
-  6122795224 [label="data: 1", shape=box, style=filled, fillcolor=none];
+  6132199376 [label="data: 3\nlabel: output\nop: +
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  6132199552 -> 6132199376;
+  6132199464 -> 6132199376;
+  6132199552 [label="data: 6\nlabel: a times b\nop: *
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  6132199920 -> 6132199552;
+  6132199832 -> 6132199552;
+  6132199464 [label="data: -3\nlabel: c times d\nop: *
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  6132199728 -> 6132199464;
+  6132199640 -> 6132199464;
+  6132199920 [label="data: 2
+ grad: 3", shape=box, style=filled, fillcolor=none];
+  6132199832 [label="data: 3
+ grad: 2", shape=box, style=filled, fillcolor=none];
+  6132199728 [label="data: -3
+ grad: 1", shape=box, style=filled, fillcolor=none];
+  6132199640 [label="data: 1
+ grad: -3", shape=box, style=filled, fillcolor=none];
 }
