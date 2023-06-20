@@ -43,18 +43,15 @@ Made this to better understand how pytorch/tensorflow work under the hood.
 <img width="410" alt="Screenshot 2023-06-19 at 7 06 57 PM" src="https://github.com/rshah918/Shahgrad/assets/20956909/3e686cbd-77a3-46b6-b4f7-94a6bde2a0f2">
 
 ### Neuron Demo
-
+#### Instantiate and forward pass inputs through a neuron, and view its expression graph and gradients: 
 ```
-    Neuron* n = new Neuron(5);//instantiate neuron with input size of 5
-    //input vector
+    //instantiate neuron with input size of 5
+    Neuron* n = new Neuron(5);
+    //create input vector
     vector<Value*> inputs;
-    inputs.push_back(new Value(1.0));
-    inputs.push_back(new Value(2.0));
-    inputs.push_back(new Value(3.0));
-    inputs.push_back(new Value(4.0));
-    inputs.push_back(new Value(5.0));
-    //label all the inputs
     for(int i = 0; i < inputs.size(); i++){
+        inputs.push_back(new Value(i+1));
+        //label all the inputs
         inputs[i]->label = "input";
     }
     /forward pass inputs through the neuron
