@@ -4,10 +4,10 @@ Shahgrad is a mathematical expression engine and ML library designed for buildin
 Made this to better understand how pytorch/tensorflow work under the hood.
 ## Features
 
-Mathematical Expression Engine: Create and manipulate mathematical expressions.
-Gradient Backpropagation: Perform gradient backpropagation through the expressions for training neural networks.
-Neural Net Library: Implement neural networks using the mathematical expressions as building blocks.
-Expression Graph Visualization: Visualize the expression graph of neural networks for better understanding.
+* Mathematical Expression Engine: Create and manipulate mathematical expressions.
+* Gradient Backpropagation: Backprop gradients through any mathematical expression.
+* Neural Net Library: Implement neural networks using the mathematical expressions as building blocks.
+* Expression Graph Visualization: Visualize the expression graph of neural networks for better understanding.
 
 ## Gradient Engine demo
 
