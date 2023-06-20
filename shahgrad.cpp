@@ -97,6 +97,7 @@ class Value{
 
         void generateDotFile(const std::string& dotFilePath) {
             //This is a helper function for the mathematical expression graph visualizer. It generates a DOT file which gets converted to an image
+                //chatgpt wrote this function and visualizeGraph() lolol. I'm too lazy to learn graphViz
             Value* root = this;
             std::ofstream dotFile(dotFilePath);
             if (!dotFile) {
@@ -174,6 +175,7 @@ class Neuron{
 
         Neuron(int input_size){
             this->input_size = input_size;
+            //initialize all weights to 1.0 for now. Change later so its random
             for(int i = 0; i < input_size; i++){
                 this->weights.push_back(new Value(1.0));
                 weights[i]->label = "weight";
@@ -190,33 +192,38 @@ class Neuron{
             this->out = *running_sum;
         }
 
-        void backward(float grad = 1.0){
-            out.grad = grad;
+        void backward(){
             out.backprop();
         }
 };
 
-class Linear{
-    /* TO DO:
+class Layer{
+    public:
+        int input_size;
+        vector<Value*> outputs;
+};
+
+class Linear: public Layer{
+    /*
     Created a fully connected layer of neurons. Feeds an input vector through all the neurons in the layer during the forward pass, and backprops 
-    gradients throughout the layer during the backward pass.
+    gradients through the layer during the backward pass.
     */
     public:
         int input_size;
-        vector<Neuron*> output_layer;
+        vector<Neuron*> neurons;
         vector<Value*> outputs;
 
         Linear(int input_size, int output_size){
             this->input_size = input_size;
             for(int i = 0; i < output_size; i++){
-                output_layer.push_back(new Neuron(input_size));
-                outputs.push_back(&output_layer[i]->out);
+                neurons.push_back(new Neuron(input_size));
+                outputs.push_back(&neurons[i]->out);
             }
         }
         
         void forward(vector<Value*> & inputs){
-            for(int i = 0; i < output_layer.size(); i++){
-                Neuron* n = output_layer[i];
+            for(int i = 0; i < neurons.size(); i++){
+                Neuron* n = neurons[i];
                 n->forward(inputs);
             }
         }
@@ -227,7 +234,7 @@ class Linear{
                     outputs[i]->grad += grads[j];
                 }
                 //backward pass gradients through each neuron
-                output_layer[i]->backward();
+                neurons[i]->backward();
             }  
         }
         void visualizeGraph(){
@@ -238,6 +245,42 @@ class Linear{
                 dummy_tail.prev.push_back(outputs[i]);
             }
             dummy_tail.visualizeGraph();
+        }
+};
+
+class Model{
+    /*
+    Slap together any combination of layers to form a neural net.
+    -make sure shapes match up
+    -make sure gradients pass between layers properly
+    -
+    */
+    public:
+        vector<Layer*> layers;
+        int input_size;
+
+        void add_layer(string layer_name, int output_size){
+            if(layer_name == "linear"){
+                if(layers.size() == 0){
+                    Layer * new_layer = new Linear(this->input_size, output_size);
+                    layers.push_back(new_layer);
+                }
+                else{
+                    Layer * new_layer = new Linear(layers[layers.size()-1]->outputs.size()-1, output_size);
+                    layers.push_back(new_layer);
+                }
+            }
+        }
+
+        void view_layers(){
+        }
+
+        void forward(){
+
+        }
+
+        void backward(){
+
         }
 };
 
@@ -265,13 +308,13 @@ int main(){
     /*
     Demo of a single neuron forward/backward pass + visualization
     */
-    Neuron* n = new Neuron(5);
+    Neuron* n = new Neuron(2);
     vector<Value*> inputs;
     inputs.push_back(new Value(1.0));
     inputs.push_back(new Value(2.0));
-    inputs.push_back(new Value(3.0));
-    inputs.push_back(new Value(4.0));
-    inputs.push_back(new Value(5.0));
+    // inputs.push_back(new Value(3.0));
+    // inputs.push_back(new Value(4.0));
+    // inputs.push_back(new Value(5.0));
     //label all the inputs
     for(int i = 0; i < inputs.size(); i++){
         inputs[i]->label = "input";
@@ -282,12 +325,12 @@ int main(){
     /*
     Demo of a Linear layer
     */
-    Linear l = Linear(5, 2);
+    Linear l = Linear(2, 2);
     l.forward(inputs);
     cout << (l.outputs[0]->data) << endl;
     vector<float> out_grads;
-    out_grads.push_back(1.0);
-    out_grads.push_back(1.0);
+    out_grads.push_back(0.5);
+    out_grads.push_back(0.5);
     l.backward(out_grads);
     l.visualizeGraph();
     return 0;
