@@ -18,7 +18,7 @@ Made this to better understand how pytorch/tensorflow work under the hood.
     Value w1 = Value(-3);
     Value w2 = Value(1);
     Value bias = Value(6.8814);
-
+    
     //build expression
     Value x1w1 = x1* w1;
     x1w1.label = "x1w1";
@@ -28,19 +28,20 @@ Made this to better understand how pytorch/tensorflow work under the hood.
     Value x1w1x2w2b = x1w1x2w2 + bias;
     x1w1x2w2b.label = "x1w1 + x2w2 + bias";
     Value res = x1w1x2w2b;
-
+    
     res.label = "output";
-
+    
     //init root node gradient to 1
     res.grad = 1.0;
-
+    
     //backprop gradients and visualize
     res.backprop();
     res.visualizeGraph();
 ```
 
 ##### expression_graph.png
-<img width="410" alt="Screenshot 2023-06-19 at 7 06 57 PM" src="https://github.com/rshah918/Shahgrad/assets/20956909/3e686cbd-77a3-46b6-b4f7-94a6bde2a0f2">
+<img width="430" alt="Screenshot 2023-06-19 at 9 33 07 PM" src="https://github.com/rshah918/Shahgrad/assets/20956909/84ef14ab-915d-4ee4-ad3a-afa6580b2a90">
+
 
 ### Neuron Demo
 #### Instantiate and forward pass inputs through a neuron, and view its expression graph and gradients: 
