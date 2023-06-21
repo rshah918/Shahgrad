@@ -25,21 +25,21 @@ class Value{
         }
 
         Value operator+(Value& op) {
-            Value out = *(new Value(this->data + op.data)); // Create an output node, store in heap so it doesnt get garbage collected
-            out.operation = "+";
+            Value * out = new Value(this->data + op.data); // Create an output node, store in heap so it doesnt get garbage collected
+            out->operation = "+";
             // add operands to output node as child nodes
-            out.prev.push_back(this);
-            out.prev.push_back(&op);
-            return out;
+            out->prev.push_back(this);
+            out->prev.push_back(&op);
+            return *out;
         }
 
         Value operator*(Value& operand){
-            Value out = *(new Value(this->data * operand.data));
-            out.operation = "*";
+            Value * out = new Value(this->data * operand.data);
+            out->operation = "*";
             //add operands to output node as child nodes
-            out.prev.push_back(this);
-            out.prev.push_back(&operand);
-            return out;
+            out->prev.push_back(this);
+            out->prev.push_back(&operand);
+            return * out;
         }
         Value tanh(){
             float x = this->data;
@@ -179,6 +179,7 @@ class Neuron{
             for(int i = 0; i < input_size; i++){
                 this->weights.push_back(new Value(1.0));
                 weights[i]->label = "weight";
+                weights[i]->grad = 0.0;
             }
         }
 
@@ -201,6 +202,7 @@ class Layer{
     public:
         int input_size;
         vector<Value*> outputs;
+        void forward(vector<Value*> & inputs);
 };
 
 class Linear: public Layer{
@@ -210,11 +212,13 @@ class Linear: public Layer{
     */
     public:
         int input_size;
+        int output_size;
         vector<Neuron*> neurons;
         vector<Value*> outputs;
 
         Linear(int input_size, int output_size){
             this->input_size = input_size;
+            this->output_size = output_size;
             for(int i = 0; i < output_size; i++){
                 neurons.push_back(new Neuron(input_size));
                 outputs.push_back(&neurons[i]->out);
@@ -229,12 +233,12 @@ class Linear: public Layer{
         }
         void backward(vector<float> grads){
             //accumulate gradients and pass to output neurons.
-            for(int i = 0; i < outputs.size(); i++){
+            for(int i = 0; i < this->outputs.size(); i++){
                 for(int j = 0; j < grads.size(); j++){
                     outputs[i]->grad += grads[j];
                 }
                 //backward pass gradients through each neuron
-                neurons[i]->backward();
+                this->neurons[i]->backward();
             }  
         }
         void visualizeGraph(){
@@ -256,17 +260,18 @@ class Model{
     -
     */
     public:
-        vector<Layer*> layers;
+        vector<Linear*> layers;
         int input_size;
+        int num_layers = layers.size();
 
         void add_layer(string layer_name, int output_size){
             if(layer_name == "linear"){
                 if(layers.size() == 0){
-                    Layer * new_layer = new Linear(this->input_size, output_size);
+                    Linear * new_layer = new Linear(this->input_size, output_size);
                     layers.push_back(new_layer);
                 }
                 else{
-                    Layer * new_layer = new Linear(layers[layers.size()-1]->outputs.size()-1, output_size);
+                    Linear * new_layer = new Linear(layers.back()->outputs.size(), output_size);
                     layers.push_back(new_layer);
                 }
             }
@@ -275,16 +280,35 @@ class Model{
         void view_layers(){
         }
 
-        void forward(){
-
+        void forward(vector<Value*> & input_vector){
+            /*
+            iteratively forward pass through each layer in the model.
+            */
+            for(int i = 0; i < layers.size(); i++){
+                //forward pass current layer
+                layers[i]->forward(input_vector);
+                //output vector of current layer becomes the input vector of the next layer
+                input_vector = (layers[i]->outputs);
+                //print the output vector
+                for(int j = 0; j < input_vector.size(); j++){
+                    cout << input_vector[j]->data << endl;
+                }
+            }
+            
         }
 
-        void backward(){
-
+        void backward(vector<float> out_grads){
+            /*
+            backprop gradients throughout the entire neural net's expression graph
+            Alright. Gradient backprop is wrong when num_layers > 1. Addition is increasing gradients by 1 for some reason. and mul is also wrong...
+            */
+            Linear * last_layer = layers[1];
+            last_layer->backward(out_grads);
         }
+        
 };
 
-int main(){
+void expression_engine_demo(){
     //Demonstration of the gradient engine
     //inputs
     Value a = Value(2);
@@ -305,10 +329,12 @@ int main(){
     //backprop and visualize
     res.backprop();
     res.visualizeGraph();
+}
+
+void single_neuron_demo(){
     /*
     Demo of a single neuron forward/backward pass + visualization
     */
-    Neuron* n = new Neuron(2);
     vector<Value*> inputs;
     inputs.push_back(new Value(1.0));
     inputs.push_back(new Value(2.0));
@@ -319,20 +345,60 @@ int main(){
     for(int i = 0; i < inputs.size(); i++){
         inputs[i]->label = "input";
     }
+    int input_vector_length = inputs.size();
+    Neuron* n = new Neuron(input_vector_length);
     n->forward(inputs);
     n->backward();
     n->out.visualizeGraph();
+}
+
+void linear_layer_demo(){
     /*
     Demo of a Linear layer
     */
-    Linear l = Linear(2, 2);
+    vector<Value*> inputs;
+    //create input vector
+    int input_vector_length = 2;
+    for(int i = 0; i < input_vector_length; i++){
+        inputs.push_back(new Value(i + 1.0));
+        inputs[i]->label = "input"; //label all the input nodes for visualization purposes
+    }
+    int output_size = 1;
+    Linear l = Linear(input_vector_length, output_size);
     l.forward(inputs);
     cout << (l.outputs[0]->data) << endl;
+    //initialize output gradients to 1
     vector<float> out_grads;
-    out_grads.push_back(0.5);
-    out_grads.push_back(0.5);
+    for(int i = 0; i < output_size;i++){
+        out_grads.push_back(1.0/(output_size-1));
+    }
     l.backward(out_grads);
     l.visualizeGraph();
+}
+int main(){
+    int input_vector_length = 2;
+
+    //create input vector
+    vector<Value*> inputs;
+    for(int i = 0; i < input_vector_length; i++){
+        inputs.push_back(new Value(i + 1.0));
+        inputs[i]->label = "input"; //label all the input nodes for visualization purposes
+    }
+    int output_size = 2;
+    /*
+    Demo of a model
+    */
+    Model m = Model();
+    m.input_size = input_vector_length;
+    m.add_layer("linear", output_size);
+    m.add_layer("linear", output_size);
+    m.forward(inputs);
+    vector<float> out_grads;
+    for(int i = 0; i < output_size;i++){
+        out_grads.push_back(0.5);
+    }
+    m.backward(out_grads);
+    m.layers[1]->visualizeGraph();
     return 0;
 };
 
