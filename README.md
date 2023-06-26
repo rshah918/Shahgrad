@@ -1,5 +1,5 @@
 # Shahgrad
-Shahgrad is ann autograd engine and ML library designed for building neural networks from scratch. It provides the ability to create and run mathematical expressions, backprop gradients through the expression graphs, and includes a lightweight neural net library. The library also offers visualization capabilities to explore the mathematical expression graph of any neural net.
+Shahgrad is an autograd engine and ML library designed for building neural networks from scratch. It provides the ability to create and run mathematical expressions, backprop gradients through the expression graphs, and includes a lightweight neural net library. The library also offers visualization capabilities to explore the mathematical expression graph of any neural net.
 
 Made this to better understand how pytorch/tensorflow work under the hood.
 ## Features
