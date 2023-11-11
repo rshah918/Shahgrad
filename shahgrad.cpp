@@ -15,15 +15,14 @@ class Value{
     */
     public:
         float data;
-        vector<Value*> prev;
+        vector<Value*> prev;//contain pointers to child nodes
         string operation;
         string label;
-        float grad = 0.0;
+        float grad = 0.0;//very important to init gradients to zero, dont rely on the compiler to do this for you
    
         Value(float data){
             this->data = data;
         }
-
         Value operator+(Value& op) {
             Value * out = new Value(this->data + op.data); // Create an output node, store in heap so it doesnt get garbage collected
             out->operation = "+";
@@ -31,6 +30,14 @@ class Value{
             out->prev.push_back(this);
             out->prev.push_back(&op);
             return *out;
+        }
+        Value operator+=(Value& op) {
+            //This operation is needed to accumulate the sum of X nodes into 1 node, as opposed to creating an output node for each pair of operands
+            this->operation = "+";
+            this->data = op.data + this->data;
+            // add operands to output node as child nodes
+            this->prev.push_back(&op);
+            return *this;
         }
 
         Value operator*(Value& operand){
@@ -56,20 +63,62 @@ class Value{
             if (this->operation=="+"){
                 //addition distributes gradient to both operands
                 for(int i = 0; i < this->prev.size(); i++){
+                    cout << "parent grad address : " << this << endl;
+                    cout << "parent grad: " << this->grad << endl;
+                    cout << "old child " << i << " grad: " << this->prev[i]->grad << endl;
                     this->prev[i]->grad += this->grad;
+                    cout << "new child " << i << " grad: " << this->prev[i]->grad << endl;
+                    cout << "-----" << endl;
                 }
             }
             else if (this->operation=="*"){
                 //parent node's gradient * other operand
+                cout << "parent grad address : " << this << endl;
+                cout << "parent grad: " << this->grad << endl;
+                cout << "old child " << 0 << " grad: " << this->prev[0]->grad << endl;
                 this->prev[0]->grad += this->grad * this->prev[1]->data;
+                cout << "new child " << 0 << " grad: " << this->prev[0]->grad << endl;
+                cout << "-----" << endl;
                 this->prev[1]->grad += this->grad * this->prev[0]->data;
+                cout << "parent grad address : " << this << endl;
+                cout << "parent grad: " << this->grad << endl;
+                cout << "old child " << 1 << " grad: " << this->prev[1]->grad << endl;
+                cout << "new child " << 1 << " grad: " << this->prev[1]->grad << endl;
+                cout << "-----" << endl;
             }
             else if (this->operation == "tanh"){
                 this->prev[0]->grad += (1 - pow(this->data,2)) * this->grad;
             }
         }
         void backprop(){
-            //recursively backprop gradients through the expression
+            //level order traversal through the expression graph to backprop gradients through the expression
+            //Karpathy overcomplicated things by using topological sort imo
+            vector<Value*> queue;
+            queue.insert(queue.begin(), this);
+            while (queue.size() > 0){
+                Value* root = queue[0];
+                for(int i = 0; i < root->prev.size(); i++){
+                    Value* child = root->prev[i];
+                    bool unique = true;
+                    //make sure child isnt already in the queue
+                    for (int j = 0; j < queue.size(); j++){
+                        if(queue[j] == child){
+                            unique= false;
+                            break;
+                        }
+                    }
+                    if(unique==true){
+                        queue.push_back(child);
+                    }
+                }
+                //backward pass current node
+                root->backward();
+                queue.erase(queue.begin() + 0);
+            }
+        }
+        void zero_grad(){
+            //recursively erase gradients through the expression. 
+            //Gradients are already initialized to zero, so no need to call this before training
             vector<Value*> queue;
             queue.insert(queue.begin(), this);
             //level order traversal backwards through the expression graph
@@ -85,12 +134,12 @@ class Value{
                             break;
                         }
                     }
-                    if(unique){
+                    if(unique==true){
                         queue.push_back(child);
                     }
                 }
                 //backward pass current node
-                root->backward();
+                root->grad = 0.0;
                 queue.erase(queue.begin() + 0);
             }
         }
@@ -128,6 +177,7 @@ class Value{
 
                 // Write node information
                 dotFile << "  " << reinterpret_cast<uintptr_t>(node) << " [label=\"";
+                dotFile << "addr: " << node << '\n';
                 dotFile << "data: " << node->data;
                 if (!node->label.empty())
                     dotFile << "\\nlabel: " << node->label;
@@ -182,18 +232,20 @@ class Neuron{
                 weights[i]->grad = 0.0;
             }
         }
-
         void forward(vector<Value*> & input){
             //perform a forward pass: Sum(weight vector * input vector)
-            Value * running_sum = new Value(0.0);
-            for(int i = 0; i < input.size(); i++){
-                Value *temp =  new Value(*input[i] * *weights[i]); //wi * xi
-                running_sum = new Value(*temp + *running_sum);//add the product to the running sum
+            this->out = Value(0.0); 
+            for (int i = 0; i < input.size(); i++) {
+                //Use += to accumulate the sum of each weight[i]*input[i] product directly into out. Dont use +, as it creates intermediate 
+                    //nodes for each pair of products. This causes the expression graph tree to become too unbalanced, and screws up gradient
+                    //accumulation during backprop. This bug took me a month to solve, and only shows up when backpropping through larger multi-layer NN's
+                this->out += * new Value(*input[i] * *weights[i]);
             }
-            this->out = *running_sum;
+            this->out.label = "output";
         }
 
         void backward(){
+            cout << "out gradient: " << this->out.grad << endl;
             out.backprop();
         }
 };
@@ -221,7 +273,7 @@ class Linear: public Layer{
             this->output_size = output_size;
             for(int i = 0; i < output_size; i++){
                 neurons.push_back(new Neuron(input_size));
-                outputs.push_back(&neurons[i]->out);
+                outputs.push_back(&(neurons[i]->out));
             }
         }
         
@@ -237,9 +289,32 @@ class Linear: public Layer{
                 for(int j = 0; j < grads.size(); j++){
                     outputs[i]->grad += grads[j];
                 }
-                //backward pass gradients through each neuron
-                this->neurons[i]->backward();
             }  
+            //backward pass gradients through each neuron
+            vector<Value*> queue = this->outputs;
+            vector<Value*> all_nodes = this->outputs;
+            //level order traversal backwards through the expression graph
+            while (queue.size() > 0){
+                Value* root = queue[0];
+                for(int i = 0; i < root->prev.size(); i++){
+                    Value* child = root->prev[i];
+                    bool unique = true;
+                    //make sure child isnt already in the queue
+                    for (int j = 0; j < all_nodes.size(); j++){
+                        if(all_nodes[j] == child){
+                            unique= false;
+                            break;
+                        }
+                    }
+                    if(unique==true){
+                        queue.push_back(child);
+                        all_nodes.push_back(child);
+                    }
+                }
+                //backward pass current node
+                root->backward();
+                queue.erase(queue.begin() + 0);
+            }
         }
         void visualizeGraph(){
             //create a dummy tail node containing pointers to all output nodes for the visualizer. Visualizer can only traverse the graph backwards starting from a single node.
@@ -273,6 +348,7 @@ class Model{
                 else{
                     Linear * new_layer = new Linear(layers.back()->outputs.size(), output_size);
                     layers.push_back(new_layer);
+                
                 }
             }
         }
@@ -301,9 +377,15 @@ class Model{
             /*
             backprop gradients throughout the entire neural net's expression graph
             Alright. Gradient backprop is wrong when num_layers > 1. Addition is increasing gradients by 1 for some reason. and mul is also wrong...
+            trying to add a dummy tail node and backprop from there but its not working. backprop stops 1 layer in...
+            somethings wrong with my level order traversal I think. gradients are being double counted
+            Might have to use DAG.
+            Found the problem. Level order traversal does not ensure that all parents are visited before visiting the current node. The expression graph gets imbalanced bc of the intermediate nodes. As a result, parent node A is much shallower than parent node B. The traversal arrives at any node through its shallowest parent, which results in a node being visited before all of its parents. This causes issues during backprop.
             */
-            Linear * last_layer = layers[1];
+            Linear * last_layer = layers.back();
             last_layer->backward(out_grads);
+            last_layer->visualizeGraph();
+
         }
         
 };
@@ -392,13 +474,13 @@ int main(){
     m.input_size = input_vector_length;
     m.add_layer("linear", output_size);
     m.add_layer("linear", output_size);
+    m.add_layer("linear", output_size);
     m.forward(inputs);
     vector<float> out_grads;
     for(int i = 0; i < output_size;i++){
         out_grads.push_back(0.5);
     }
     m.backward(out_grads);
-    m.layers[1]->visualizeGraph();
     return 0;
 };
 
