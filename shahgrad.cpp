@@ -63,28 +63,13 @@ class Value{
             if (this->operation=="+"){
                 //addition distributes gradient to both operands
                 for(int i = 0; i < this->prev.size(); i++){
-                    cout << "parent grad address : " << this << endl;
-                    cout << "parent grad: " << this->grad << endl;
-                    cout << "old child " << i << " grad: " << this->prev[i]->grad << endl;
                     this->prev[i]->grad += this->grad;
-                    cout << "new child " << i << " grad: " << this->prev[i]->grad << endl;
-                    cout << "-----" << endl;
                 }
             }
             else if (this->operation=="*"){
                 //parent node's gradient * other operand
-                cout << "parent grad address : " << this << endl;
-                cout << "parent grad: " << this->grad << endl;
-                cout << "old child " << 0 << " grad: " << this->prev[0]->grad << endl;
                 this->prev[0]->grad += this->grad * this->prev[1]->data;
-                cout << "new child " << 0 << " grad: " << this->prev[0]->grad << endl;
-                cout << "-----" << endl;
                 this->prev[1]->grad += this->grad * this->prev[0]->data;
-                cout << "parent grad address : " << this << endl;
-                cout << "parent grad: " << this->grad << endl;
-                cout << "old child " << 1 << " grad: " << this->prev[1]->grad << endl;
-                cout << "new child " << 1 << " grad: " << this->prev[1]->grad << endl;
-                cout << "-----" << endl;
             }
             else if (this->operation == "tanh"){
                 this->prev[0]->grad += (1 - pow(this->data,2)) * this->grad;
@@ -366,6 +351,7 @@ class Model{
                 //output vector of current layer becomes the input vector of the next layer
                 input_vector = (layers[i]->outputs);
                 //print the output vector
+                cout << "Layer " << i+1 << " outputs: \n";
                 for(int j = 0; j < input_vector.size(); j++){
                     cout << input_vector[j]->data << endl;
                 }
