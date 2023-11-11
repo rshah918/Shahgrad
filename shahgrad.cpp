@@ -208,6 +208,14 @@ class Neuron{
         vector<Value*> weights;
         Value out = Value(0.0);
 
+            // Deep copy constructor
+    Neuron(const Neuron& other) : input_size(other.input_size), out(other.out) {
+        // Copy weights with new instances
+        for (Value* weight : other.weights) {
+            weights.push_back(new Value(*weight));
+        }
+        this->out = * new Value(other.out.data);
+    }
         Neuron(int input_size){
             this->input_size = input_size;
             //initialize all weights to 1.0 for now. Change later so its random
@@ -219,7 +227,6 @@ class Neuron{
         }
         void forward(vector<Value*> & input){
             //perform a forward pass: Sum(weight vector * input vector)
-            this->out = Value(0.0); 
             for (int i = 0; i < input.size(); i++) {
                 //Use += to accumulate the sum of each weight[i]*input[i] product directly into out. Dont use +, as it creates intermediate 
                     //nodes for each pair of products. This causes the expression graph tree to become too unbalanced, and screws up gradient
@@ -263,6 +270,27 @@ class Linear: public Layer{
         }
         
         void forward(vector<Value*> & inputs){
+            /*
+            Each forward pass builds intermediate Value nodes inside each neuron (for each input*weight product), which need to persist to ensure 
+            expression graph connectivity for backprop. Subsequent forward pass builds new intermediate nodes, thus resulting in a 
+            memory leak from previous runs. Need to perform a deep copy for each neuron in order to garbage collect the old
+            intermediate nodes
+            */
+            vector<Neuron*> new_neurons; 
+            vector<Value*> new_outputs; 
+            //populate new neuron and output vectors with deep copies
+            for (int i = 0; i < neurons.size(); i++) {
+                new_neurons.push_back(new Neuron(*neurons[i]));// Deep copy
+                new_outputs.push_back(& (new_neurons[i]->out));
+            }
+            // Replace the original neurons with the deep-copies
+            neurons.swap(new_neurons);
+            outputs.swap(new_outputs);
+            // Delete the old neurons to free up memory
+            for (int i = 0; i < new_neurons.size(); i++) {
+                delete new_neurons[i];
+            }
+            //Now do the actual forward pass
             for(int i = 0; i < neurons.size(); i++){
                 Neuron* n = neurons[i];
                 n->forward(inputs);
@@ -315,9 +343,6 @@ class Linear: public Layer{
 class Model{
     /*
     Slap together any combination of layers to form a neural net.
-    -make sure shapes match up
-    -make sure gradients pass between layers properly
-    -
     */
     public:
         vector<Linear*> layers;
@@ -338,10 +363,7 @@ class Model{
             }
         }
 
-        void view_layers(){
-        }
-
-        void forward(vector<Value*> & input_vector){
+        vector<Value*> forward(vector<Value*> & input_vector){
             /*
             iteratively forward pass through each layer in the model.
             */
@@ -351,14 +373,19 @@ class Model{
                 //output vector of current layer becomes the input vector of the next layer
                 input_vector = (layers[i]->outputs);
                 //print the output vector
-                cout << "Layer " << i+1 << " outputs: \n";
-                for(int j = 0; j < input_vector.size(); j++){
-                    cout << input_vector[j]->data << endl;
+                if(i==layers.size()-1){
+                    vector<Value*> out;
+                    cout << "Layer " << i+1 << " outputs: " << endl;
+                    for(int j = 0; j < input_vector.size(); j++){
+                        cout << input_vector[j]->data;
+                        out.push_back(input_vector[j]);
+                    }
+                    cout << endl;
+                    return out;
                 }
             }
             
         }
-
         void backward(vector<float> out_grads){
             /*
             backprop gradients throughout the entire neural net's expression graph
@@ -366,6 +393,36 @@ class Model{
             Linear * last_layer = layers.back();
             last_layer->backward(out_grads);
             last_layer->visualizeGraph();
+
+        }
+        float mean_squared_error(vector<float> & true_output, vector<Value*> & NN_output){
+            float MSE = 0.0;
+            for(int i = 0; i < true_output.size();i++){
+                MSE += (true_output[i] - NN_output[i]->data) * (true_output[i] - NN_output[i]->data);
+            }
+            return MSE/true_output.size();
+        }
+        float mean_squared_error_derivative(float MSE){
+            //implement this
+            return 0.0;
+        }
+        void train(vector<Value*> & X_train, vector<float> & Y_train){
+            vector<Value*> NN_out = this->forward(X_train);
+            float MSE = mean_squared_error(Y_train, NN_out);
+            cout << "MSE: " << MSE << endl;
+            /* To do list: 
+            
+            Need to calculate output gradients
+                - To do that, I need an output vector and loss function, and the loss function derivative. 
+                - Need an optimizer to perform weight updates, and then zero_grad right after 
+                - Use Value for everything
+                - Weight update and optimizer
+                -Train NN on a simple task
+                - Going to need to write a gradient validation tool
+                - Memory leak!! Each forward pass creates a new intermediate nodes, instead of overwriting the old ones...
+                    - Alright so the weights are persisted which is good. Just put intermediate nodes on the stack for garbage collection
+                    - Ok I am deep copying each neuron so that the intermediate nodes from the previous forward pass are garbage collected
+            */
 
         }
         
@@ -408,9 +465,12 @@ void single_neuron_demo(){
     for(int i = 0; i < inputs.size(); i++){
         inputs[i]->label = "input";
     }
+    //Instantiate Neuron and forward pass
     int input_vector_length = inputs.size();
     Neuron* n = new Neuron(input_vector_length);
     n->forward(inputs);
+    //Set output gradient and backpropagate
+    n->out.grad = 1.0;
     n->backward();
     n->out.visualizeGraph();
 }
@@ -426,7 +486,7 @@ void linear_layer_demo(){
         inputs.push_back(new Value(i + 1.0));
         inputs[i]->label = "input"; //label all the input nodes for visualization purposes
     }
-    int output_size = 1;
+    int output_size = 3;
     Linear l = Linear(input_vector_length, output_size);
     l.forward(inputs);
     cout << (l.outputs[0]->data) << endl;
@@ -456,11 +516,11 @@ int main(){
     m.add_layer("linear", output_size);
     m.add_layer("linear", output_size);
     m.add_layer("linear", output_size);
-    m.forward(inputs);
-    vector<float> out_grads;
+    vector<float> Y_train;
     for(int i = 0; i < output_size;i++){
-        out_grads.push_back(0.5);
+        Y_train.push_back((1.0));
     }
-    m.backward(out_grads);
+    m.train(inputs, Y_train);
+    linear_layer_demo();
     return 0;
 };
