@@ -362,11 +362,6 @@ class Model{
         void backward(vector<float> out_grads){
             /*
             backprop gradients throughout the entire neural net's expression graph
-            Alright. Gradient backprop is wrong when num_layers > 1. Addition is increasing gradients by 1 for some reason. and mul is also wrong...
-            trying to add a dummy tail node and backprop from there but its not working. backprop stops 1 layer in...
-            somethings wrong with my level order traversal I think. gradients are being double counted
-            Might have to use DAG.
-            Found the problem. Level order traversal does not ensure that all parents are visited before visiting the current node. The expression graph gets imbalanced bc of the intermediate nodes. As a result, parent node A is much shallower than parent node B. The traversal arrives at any node through its shallowest parent, which results in a node being visited before all of its parents. This causes issues during backprop.
             */
             Linear * last_layer = layers.back();
             last_layer->backward(out_grads);
@@ -406,9 +401,9 @@ void single_neuron_demo(){
     vector<Value*> inputs;
     inputs.push_back(new Value(1.0));
     inputs.push_back(new Value(2.0));
-    // inputs.push_back(new Value(3.0));
-    // inputs.push_back(new Value(4.0));
-    // inputs.push_back(new Value(5.0));
+    inputs.push_back(new Value(3.0));
+    inputs.push_back(new Value(4.0));
+    inputs.push_back(new Value(5.0));
     //label all the inputs
     for(int i = 0; i < inputs.size(); i++){
         inputs[i]->label = "input";
@@ -469,5 +464,3 @@ int main(){
     m.backward(out_grads);
     return 0;
 };
-
-
