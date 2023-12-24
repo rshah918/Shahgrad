@@ -368,44 +368,45 @@ class Model{
     */
     public:
         vector<Linear*> layers;
+        vector<Value*> outputs;
         int input_size;
         int num_layers = layers.size();
+
+        Model(int input_size){
+            this->input_size = input_size;
+        }
 
         void add_layer(string layer_name, int output_size){
             if(layer_name == "linear"){
                 if(layers.size() == 0){
                     Linear * new_layer = new Linear(this->input_size, output_size);
                     layers.push_back(new_layer);
+                    this->outputs = new_layer->outputs;
                 }
                 else{
                     Linear * new_layer = new Linear(layers.back()->outputs.size(), output_size);
                     layers.push_back(new_layer);
-                
+                    this->outputs = new_layer->outputs;
                 }
             }
         }
-
-        vector<Value*> forward(vector<Value*> & input_vector){
-            /*
-            iteratively forward pass through each layer in the model.
-            */
+        void compile(vector<Value*> input_vector){
+            //make sure layers are conjoined properly
+            //iteratively build each layer's expression graph
             for(int i = 0; i < layers.size(); i++){
-                //forward pass current layer
-                layers[i]->forward();
-                //output vector of current layer becomes the input vector of the next layer
-                input_vector = (layers[i]->outputs);
-                //print the output vector
-                if(i==layers.size()-1){
-                    vector<Value*> out;
-                    cout << "Layer " << i+1 << " outputs: " << endl;
-                    for(int j = 0; j < input_vector.size(); j++){
-                        cout << input_vector[j]->data << endl;;
-                        out.push_back(input_vector[j]);
-                    }
-                    return out;
+                if(i==0){
+                    layers[i]->compile(input_vector);
+                }
+                else{
+                    layers[i]->compile(layers[i-1]->outputs);
                 }
             }
-            
+        }
+        vector<Value*> forward(){
+            for(Value* out:outputs){
+                out->inorderTraversal();
+            }
+            return outputs;
         }
         void backward(vector<float> out_grads){
             /*
@@ -429,26 +430,26 @@ class Model{
             }
             return MSE_derivative/true_output.size();
         }
-        void train(vector<Value*> & X_train, vector<float> & Y_train, int num_epochs=1){
-            cout << "Starting Training..." << endl;
-            for(int i = 0; i < num_epochs; i++){
-                //1: forward pass
-                vector<Value*> NN_out = this->forward(X_train);
-                //2: calculate loss
-                float MSE = mean_squared_error(Y_train, NN_out);
-                vector<float> loss;
-                loss.push_back(mean_squared_error_derivative(Y_train, NN_out));
-                //3: backprop gradients and update weights
-                this->backward(loss);
-                cout << "banana" << endl;
-                //4: zero out gradients
-                Value dummy_tail = Value(0.0);
-                for(int j = 0; j < NN_out.size(); j++){
-                    NN_out[j]->zero_grad();
-                }
-                cout << "banana" << endl;
-            }
-        }
+        // void train(vector<Value*> & X_train, vector<float> & Y_train, int num_epochs=1){
+        //     cout << "Starting Training..." << endl;
+        //     for(int i = 0; i < num_epochs; i++){
+        //         //1: forward pass
+        //         vector<Value*> NN_out = this->forward(X_train);
+        //         //2: calculate loss
+        //         float MSE = mean_squared_error(Y_train, NN_out);
+        //         vector<float> loss;
+        //         loss.push_back(mean_squared_error_derivative(Y_train, NN_out));
+        //         //3: backprop gradients and update weights
+        //         this->backward(loss);
+        //         cout << "banana" << endl;
+        //         //4: zero out gradients
+        //         Value dummy_tail = Value(0.0);
+        //         for(int j = 0; j < NN_out.size(); j++){
+        //             NN_out[j]->zero_grad();
+        //         }
+        //         cout << "banana" << endl;
+        //     }
+        // }
 };
 
 void expression_engine_demo(){
@@ -530,11 +531,13 @@ int main(){
         inputs.push_back(new Value(i));
         inputs[i]->label = "input"; //label all the input nodes for visualization purposes
     }
-    Linear l = * new Linear(input_vector_length, 5);
-    l.compile(inputs);
-    l.forward();
-    l.visualizeGraph();
-
+    Model  m = * new Model(input_vector_length);
+    m.add_layer("linear", 1);
+    m.add_layer("linear", 1);
+    m.compile(inputs);
+    vector<float> out_grads;
+    out_grads.push_back(1.0);
+    m.backward(out_grads);
 
     return 0;
     /*
@@ -552,8 +555,11 @@ int main(){
     -update linear.forward 
         -DONE
     -implement linear.compile
-        DONE
+        -DONE
     -update model.compile to make sure nextNode vectors at layer outputs are properly populated
+        -DONE
+    -update model.forward and verify proper functionality for multi layer NN's
+        -DONE
     */
 
 };
