@@ -16,7 +16,7 @@ class Value{
     public:
         float data;
         vector<Value*> prev;//contain pointers to child nodes
-        vector<Value*> next;
+        Value* next;
         string operation;
         string label;
         float grad = 0.0;//very important to init gradients to zero, dont rely on the compiler to do this for you
@@ -32,8 +32,8 @@ class Value{
             out->prev.push_back(this);
             out->prev.push_back(operand);
             //save reference of output node in the child node's vector of nextnodes
-            operand->next.push_back(out);
-            this->next.push_back(out);
+            operand->next = out;
+            this->next = out;
             return out;
         }
         Value *operator+=(Value* operand) {
@@ -43,7 +43,7 @@ class Value{
             // add operands to output node as child nodes
             this->prev.push_back(operand);
             //save reference of output node in the child node's vector of nextnodes
-            operand->next.push_back(this);
+            operand->next = this;
             return this;
         }
 
@@ -54,9 +54,39 @@ class Value{
             out->prev.push_back(this);
             out->prev.push_back(operand);
             //save reference of output node in the child node's vector of nextnodes
-            operand->next.push_back(out);
-            this->next.push_back(out);
+            operand->next = out;
+            this->next = out;
             return  out;
+        }
+        void inorderTraversal() {
+            // Perform an inorder traversal to forward propagate inputs 
+            if (this != nullptr) {
+                for (Value* child : prev) {
+                    child->inorderTraversal(); // Traverse left child
+                }
+                // Forward propagate based on the operation
+                if (this->operation == "+") {
+                    this->data = 0;//zero out as its the additive identity
+                    for(int i = 0;i < this->prev.size();i++){
+                        cout << prev[i] << endl;
+                        this->data += prev[i]->data;
+                    }
+                }
+                if (this->operation == "*") {
+                    this->data = 1;//set to 1 as its the multiplicative identity
+                    for(int i = 0;i < this->prev.size();i++){
+                        this->data *= prev[i]->data;
+                    }
+        
+                }
+
+                // Print or process the node as needed
+                //std::cout << "Node Data: " << this->data << std::endl;
+
+                for (Value* child : prev) {
+                    child->inorderTraversal(); // Traverse right child
+                }
+            }
         }
         Value tanh(){
             float x = this->data;
@@ -226,14 +256,14 @@ class Neuron{
         vector<Value*> weights;
         Value out = Value(0.0);
 
-            // Deep copy constructor
-    Neuron(const Neuron& other) : input_size(other.input_size), out(other.out) {
-        // Copy weights with new instances
-        for (Value* weight : other.weights) {
-            weights.push_back(new Value(*weight));
+        // Deep copy constructor
+        Neuron(const Neuron& other) : input_size(other.input_size), out(other.out) {
+            // Copy weights with new instances
+            for (Value* weight : other.weights) {
+                weights.push_back(new Value(*weight));
+            }
+            this->out = * new Value(other.out.data);
         }
-        this->out = * new Value(other.out.data);
-    }
         Neuron(int input_size){
             this->input_size = input_size;
             //initialize all weights to 1.0 for now. Change later so its random
@@ -243,14 +273,19 @@ class Neuron{
                 weights[i]->grad = 0.0;
             }
         }
-        void forward(vector<Value*> & input){
-            //perform a forward pass: Sum(weight vector * input vector)
+        void compile(vector<Value*> & input){
+            //builds the expression graph, by constructing the intermediate nodes sitting in between the output and weights/inputs
             for (int i = 0; i < input.size(); i++) {
                 //Use += to accumulate the sum of each weight[i]*input[i] product directly into out. Dont use +, as it creates intermediate 
-                    //nodes for each pair of products. This causes the expression graph to become too unbalanced, and screws up gradient
-                    //accumulation during backprop. This bug took me a month to solve, and only shows up when backpropping through larger multi-layer NN's
+                //nodes for each pair of products. This causes the expression graph to become too unbalanced, and screws up gradient
+                //accumulation during backprop. This bug took me a month to solve, and only shows up when backpropping through larger multi-layer NN's
                 this->out += (*input[i] * weights[i]);
             }
+            this->out.label = "output";
+            }
+        void forward(vector<Value*> & input){
+            //perform a forward pass: Sum(weight vector * input vector)
+            this->out.inorderTraversal();
             this->out.label = "output";
         }
 
@@ -518,20 +553,21 @@ void linear_layer_demo(){
     l.visualizeGraph();
 }
 int main(){
-    int input_vector_length = 2;
+    int input_vector_length = 3;
 
     //create input vector
     vector<Value*> inputs;
     for(int i = 0; i < input_vector_length; i++){
-        inputs.push_back(new Value(1.0));
+        inputs.push_back(new Value(i));
         inputs[i]->label = "input"; //label all the input nodes for visualization purposes
     }
+    Neuron * n = new Neuron(input_vector_length);
+    n->compile(inputs);
+    n->forward(inputs);
+    n->out.grad = 1.0;
+    n->backward();
+    n->out.visualizeGraph();
 
-    Value * res = *inputs[0] + inputs[1];
-    res-> visualizeGraph();
-    cout << inputs[0]->next[0] << endl;
-    cout << (inputs[1]->next[0]) << endl;
-    cout << res << endl;
     return 0;
     /*
     Segfault occurs when visualizing the graph after doing 2 subsequent forward passes
@@ -542,7 +578,9 @@ int main(){
     -add vector containing pointers to next nodes
         -DONE
     -update operators to add child nodes to the nextNode vector
+        -DONE
     -update neuron.forward to forward pass results through the graph 
+        -debug inOrder traversal
     -update model.compile to make sure nextNode vectors at layer outputs are properly populated
     */
 
