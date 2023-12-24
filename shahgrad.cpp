@@ -16,37 +16,47 @@ class Value{
     public:
         float data;
         vector<Value*> prev;//contain pointers to child nodes
+        vector<Value*> next;
         string operation;
         string label;
         float grad = 0.0;//very important to init gradients to zero, dont rely on the compiler to do this for you
-   
+        float learning_rate = 0.0001;
+
         Value(float data){
             this->data = data;
         }
-        Value operator+(Value& op) {
-            Value * out = new Value(this->data + op.data); // Create an output node, store in heap so it doesnt get garbage collected
+        Value* operator+(Value * operand) {
+            Value * out = new Value(this->data + operand->data); // Create an output node, store in heap so it doesnt get garbage collected
             out->operation = "+";
             // add operands to output node as child nodes
             out->prev.push_back(this);
-            out->prev.push_back(&op);
-            return *out;
+            out->prev.push_back(operand);
+            //save reference of output node in the child node's vector of nextnodes
+            operand->next.push_back(out);
+            this->next.push_back(out);
+            return out;
         }
-        Value operator+=(Value& op) {
+        Value *operator+=(Value* operand) {
             //This operation is needed to accumulate the sum of X nodes into 1 node, as opposed to creating an output node for each pair of operands
             this->operation = "+";
-            this->data = op.data + this->data;
+            this->data = operand->data + this->data;
             // add operands to output node as child nodes
-            this->prev.push_back(&op);
-            return *this;
+            this->prev.push_back(operand);
+            //save reference of output node in the child node's vector of nextnodes
+            operand->next.push_back(this);
+            return this;
         }
 
-        Value operator*(Value& operand){
-            Value * out = new Value(this->data * operand.data);
+        Value *operator*(Value* operand){
+            Value * out = new Value(this->data * operand->data);
             out->operation = "*";
             //add operands to output node as child nodes
             out->prev.push_back(this);
-            out->prev.push_back(&operand);
-            return * out;
+            out->prev.push_back(operand);
+            //save reference of output node in the child node's vector of nextnodes
+            operand->next.push_back(out);
+            this->next.push_back(out);
+            return  out;
         }
         Value tanh(){
             float x = this->data;
@@ -75,6 +85,12 @@ class Value{
                 this->prev[0]->grad += (1 - pow(this->data,2)) * this->grad;
             }
         }
+        void update_weight(){
+            //only update the data field if its a weight node
+            if(this->label == "weight"){
+                this->data -= this->learning_rate * this->grad;
+            }
+        }
         void backprop(){
             //level order traversal through the expression graph to backprop gradients through the expression
             //Karpathy overcomplicated things by using topological sort imo
@@ -98,6 +114,8 @@ class Value{
                 }
                 //backward pass current node
                 root->backward();
+                //update weights
+                root->update_weight();
                 queue.erase(queue.begin() + 0);
             }
         }
@@ -229,9 +247,9 @@ class Neuron{
             //perform a forward pass: Sum(weight vector * input vector)
             for (int i = 0; i < input.size(); i++) {
                 //Use += to accumulate the sum of each weight[i]*input[i] product directly into out. Dont use +, as it creates intermediate 
-                    //nodes for each pair of products. This causes the expression graph tree to become too unbalanced, and screws up gradient
+                    //nodes for each pair of products. This causes the expression graph to become too unbalanced, and screws up gradient
                     //accumulation during backprop. This bug took me a month to solve, and only shows up when backpropping through larger multi-layer NN's
-                this->out += * new Value(*input[i] * *weights[i]);
+                this->out += (*input[i] * weights[i]);
             }
             this->out.label = "output";
         }
@@ -281,7 +299,7 @@ class Linear: public Layer{
             //populate new neuron and output vectors with deep copies
             for (int i = 0; i < neurons.size(); i++) {
                 new_neurons.push_back(new Neuron(*neurons[i]));// Deep copy
-                new_outputs.push_back(& (new_neurons[i]->out));
+                new_outputs.push_back( &(new_neurons[i]->out));
             }
             // Replace the original neurons with the deep-copies
             neurons.swap(new_neurons);
@@ -305,7 +323,6 @@ class Linear: public Layer{
             }  
             //backward pass gradients through each neuron
             vector<Value*> queue = this->outputs;
-            vector<Value*> all_nodes = this->outputs;
             //level order traversal backwards through the expression graph
             while (queue.size() > 0){
                 Value* root = queue[0];
@@ -313,19 +330,20 @@ class Linear: public Layer{
                     Value* child = root->prev[i];
                     bool unique = true;
                     //make sure child isnt already in the queue
-                    for (int j = 0; j < all_nodes.size(); j++){
-                        if(all_nodes[j] == child){
+                    for (int j = 0; j < queue.size(); j++){
+                        if(queue[j] == child){
                             unique= false;
                             break;
                         }
                     }
                     if(unique==true){
                         queue.push_back(child);
-                        all_nodes.push_back(child);
                     }
                 }
                 //backward pass current node
                 root->backward();
+                //update weight
+                root->update_weight();
                 queue.erase(queue.begin() + 0);
             }
         }
@@ -377,10 +395,9 @@ class Model{
                     vector<Value*> out;
                     cout << "Layer " << i+1 << " outputs: " << endl;
                     for(int j = 0; j < input_vector.size(); j++){
-                        cout << input_vector[j]->data;
+                        cout << input_vector[j]->data << endl;;
                         out.push_back(input_vector[j]);
                     }
-                    cout << endl;
                     return out;
                 }
             }
@@ -393,7 +410,6 @@ class Model{
             Linear * last_layer = layers.back();
             last_layer->backward(out_grads);
             last_layer->visualizeGraph();
-
         }
         float mean_squared_error(vector<float> & true_output, vector<Value*> & NN_output){
             float MSE = 0.0;
@@ -402,30 +418,33 @@ class Model{
             }
             return MSE/true_output.size();
         }
-        float mean_squared_error_derivative(float MSE){
-            //implement this
-            return 0.0;
+        float mean_squared_error_derivative(vector<float> & true_output, vector<Value*> & NN_output){
+            float MSE_derivative = 0.0;
+            for(int i = 0; i < true_output.size();i++){
+                MSE_derivative += 2.0 * (true_output[i] - NN_output[i]->data);
+            }
+            return MSE_derivative/true_output.size();
         }
-        void train(vector<Value*> & X_train, vector<float> & Y_train){
-            vector<Value*> NN_out = this->forward(X_train);
-            float MSE = mean_squared_error(Y_train, NN_out);
-            cout << "MSE: " << MSE << endl;
-            /* To do list: 
-            
-            Need to calculate output gradients
-                - To do that, I need an output vector and loss function, and the loss function derivative. 
-                - Need an optimizer to perform weight updates, and then zero_grad right after 
-                - Use Value for everything
-                - Weight update and optimizer
-                -Train NN on a simple task
-                - Going to need to write a gradient validation tool
-                - Memory leak!! Each forward pass creates a new intermediate nodes, instead of overwriting the old ones...
-                    - Alright so the weights are persisted which is good. Just put intermediate nodes on the stack for garbage collection
-                    - Ok I am deep copying each neuron so that the intermediate nodes from the previous forward pass are garbage collected
-            */
-
+        void train(vector<Value*> & X_train, vector<float> & Y_train, int num_epochs=1){
+            cout << "Starting Training..." << endl;
+            for(int i = 0; i < num_epochs; i++){
+                //1: forward pass
+                vector<Value*> NN_out = this->forward(X_train);
+                //2: calculate loss
+                float MSE = mean_squared_error(Y_train, NN_out);
+                vector<float> loss;
+                loss.push_back(mean_squared_error_derivative(Y_train, NN_out));
+                //3: backprop gradients and update weights
+                this->backward(loss);
+                cout << "banana" << endl;
+                //4: zero out gradients
+                Value dummy_tail = Value(0.0);
+                for(int j = 0; j < NN_out.size(); j++){
+                    NN_out[j]->zero_grad();
+                }
+                cout << "banana" << endl;
+            }
         }
-        
 };
 
 void expression_engine_demo(){
@@ -437,18 +456,18 @@ void expression_engine_demo(){
     Value d = Value(1);
 
     //expression
-    Value a_times_b = a * b;
-    a_times_b.label = "a times b";
-    Value c_times_d = c * d;
-    c_times_d.label = "c times d";
-    Value res = a_times_b + c_times_d;
-    res.label = "output";
+    Value * a_times_b = a * &b;
+    a_times_b->label = "a times b";
+    Value * c_times_d = c * &d;
+    c_times_d->label = "c times d";
+    Value * res = *a_times_b + c_times_d;
+    res->label = "output";
 
-    res.grad = 1.0; //init root node grad to 1
+    res->grad = 1.0; //init root node grad to 1
 
     //backprop and visualize
-    res.backprop();
-    res.visualizeGraph();
+    res->backprop();
+    res->visualizeGraph();
 }
 
 void single_neuron_demo(){
@@ -504,23 +523,27 @@ int main(){
     //create input vector
     vector<Value*> inputs;
     for(int i = 0; i < input_vector_length; i++){
-        inputs.push_back(new Value(i + 1.0));
+        inputs.push_back(new Value(1.0));
         inputs[i]->label = "input"; //label all the input nodes for visualization purposes
     }
-    int output_size = 2;
-    /*
-    Demo of a model
-    */
-    Model m = Model();
-    m.input_size = input_vector_length;
-    m.add_layer("linear", output_size);
-    m.add_layer("linear", output_size);
-    m.add_layer("linear", output_size);
-    vector<float> Y_train;
-    for(int i = 0; i < output_size;i++){
-        Y_train.push_back((1.0));
-    }
-    m.train(inputs, Y_train);
-    linear_layer_demo();
+
+    Value * res = *inputs[0] + inputs[1];
+    res-> visualizeGraph();
+    cout << inputs[0]->next[0] << endl;
+    cout << (inputs[1]->next[0]) << endl;
+    cout << res << endl;
     return 0;
+    /*
+    Segfault occurs when visualizing the graph after doing 2 subsequent forward passes
+        verify graph connectivity
+        implement a model.compile and make the graph bidirectional
+            -signficant refactoring 
+    Alright lets take a page out of Capital One's book and break up this big task into smaller "stories"
+    -add vector containing pointers to next nodes
+        -DONE
+    -update operators to add child nodes to the nextNode vector
+    -update neuron.forward to forward pass results through the graph 
+    -update model.compile to make sure nextNode vectors at layer outputs are properly populated
+    */
+
 };
