@@ -68,7 +68,6 @@ class Value{
                 if (this->operation == "+") {
                     this->data = 0;//zero out as its the additive identity
                     for(int i = 0;i < this->prev.size();i++){
-                        cout << prev[i] << endl;
                         this->data += prev[i]->data;
                     }
                 }
@@ -77,11 +76,7 @@ class Value{
                     for(int i = 0;i < this->prev.size();i++){
                         this->data *= prev[i]->data;
                     }
-        
                 }
-
-                // Print or process the node as needed
-                //std::cout << "Node Data: " << this->data << std::endl;
 
                 for (Value* child : prev) {
                     child->inorderTraversal(); // Traverse right child
@@ -256,14 +251,6 @@ class Neuron{
         vector<Value*> weights;
         Value out = Value(0.0);
 
-        // Deep copy constructor
-        Neuron(const Neuron& other) : input_size(other.input_size), out(other.out) {
-            // Copy weights with new instances
-            for (Value* weight : other.weights) {
-                weights.push_back(new Value(*weight));
-            }
-            this->out = * new Value(other.out.data);
-        }
         Neuron(int input_size){
             this->input_size = input_size;
             //initialize all weights to 1.0 for now. Change later so its random
@@ -283,7 +270,7 @@ class Neuron{
             }
             this->out.label = "output";
             }
-        void forward(vector<Value*> & input){
+        void forward(){
             //perform a forward pass: Sum(weight vector * input vector)
             this->out.inorderTraversal();
             this->out.label = "output";
@@ -321,32 +308,14 @@ class Linear: public Layer{
                 outputs.push_back(&(neurons[i]->out));
             }
         }
-        
-        void forward(vector<Value*> & inputs){
-            /*
-            Each forward pass builds intermediate Value nodes inside each neuron (for each input*weight product), which need to persist to ensure 
-            expression graph connectivity for backprop. Subsequent forward pass builds new intermediate nodes, thus resulting in a 
-            memory leak from previous runs. Need to perform a deep copy for each neuron in order to garbage collect the old
-            intermediate nodes
-            */
-            vector<Neuron*> new_neurons; 
-            vector<Value*> new_outputs; 
-            //populate new neuron and output vectors with deep copies
-            for (int i = 0; i < neurons.size(); i++) {
-                new_neurons.push_back(new Neuron(*neurons[i]));// Deep copy
-                new_outputs.push_back( &(new_neurons[i]->out));
+        void compile(vector<Value*> inputs){
+            for(Neuron* n:neurons){
+                n->compile(inputs);
             }
-            // Replace the original neurons with the deep-copies
-            neurons.swap(new_neurons);
-            outputs.swap(new_outputs);
-            // Delete the old neurons to free up memory
-            for (int i = 0; i < new_neurons.size(); i++) {
-                delete new_neurons[i];
-            }
-            //Now do the actual forward pass
-            for(int i = 0; i < neurons.size(); i++){
-                Neuron* n = neurons[i];
-                n->forward(inputs);
+        }
+        void forward(){
+            for(Value* output:outputs){
+                output->inorderTraversal();
             }
         }
         void backward(vector<float> grads){
@@ -422,7 +391,7 @@ class Model{
             */
             for(int i = 0; i < layers.size(); i++){
                 //forward pass current layer
-                layers[i]->forward(input_vector);
+                layers[i]->forward();
                 //output vector of current layer becomes the input vector of the next layer
                 input_vector = (layers[i]->outputs);
                 //print the output vector
@@ -522,7 +491,7 @@ void single_neuron_demo(){
     //Instantiate Neuron and forward pass
     int input_vector_length = inputs.size();
     Neuron* n = new Neuron(input_vector_length);
-    n->forward(inputs);
+    n->forward();
     //Set output gradient and backpropagate
     n->out.grad = 1.0;
     n->backward();
@@ -542,7 +511,7 @@ void linear_layer_demo(){
     }
     int output_size = 3;
     Linear l = Linear(input_vector_length, output_size);
-    l.forward(inputs);
+    l.forward();
     cout << (l.outputs[0]->data) << endl;
     //initialize output gradients to 1
     vector<float> out_grads;
@@ -561,12 +530,11 @@ int main(){
         inputs.push_back(new Value(i));
         inputs[i]->label = "input"; //label all the input nodes for visualization purposes
     }
-    Neuron * n = new Neuron(input_vector_length);
-    n->compile(inputs);
-    n->forward(inputs);
-    n->out.grad = 1.0;
-    n->backward();
-    n->out.visualizeGraph();
+    Linear l = * new Linear(input_vector_length, 5);
+    l.compile(inputs);
+    l.forward();
+    l.visualizeGraph();
+
 
     return 0;
     /*
@@ -580,7 +548,11 @@ int main(){
     -update operators to add child nodes to the nextNode vector
         -DONE
     -update neuron.forward to forward pass results through the graph 
-        -debug inOrder traversal
+        -DONE
+    -update linear.forward 
+        -DONE
+    -implement linear.compile
+        DONE
     -update model.compile to make sure nextNode vectors at layer outputs are properly populated
     */
 
