@@ -20,7 +20,7 @@ class Value{
         string operation;
         string label;
         float grad = 0.0;//very important to init gradients to zero, dont rely on the compiler to do this for you
-        float learning_rate = 0.0001;
+        float learning_rate = 0.005;
 
         Value(float data){
             this->data = data;
@@ -255,7 +255,7 @@ class Neuron{
             this->input_size = input_size;
             //initialize all weights to 1.0 for now. Change later so its random
             for(int i = 0; i < input_size; i++){
-                this->weights.push_back(new Value(1.0));
+                this->weights.push_back(new Value(0.01));
                 weights[i]->label = "weight";
                 weights[i]->grad = 0.0;
             }
@@ -368,6 +368,7 @@ class Model{
     */
     public:
         vector<Linear*> layers;
+        vector<Value*> inputs;
         vector<Value*> outputs;
         int input_size;
         int num_layers = layers.size();
@@ -393,6 +394,7 @@ class Model{
         void compile(vector<Value*> input_vector){
             //make sure layers are conjoined properly
             //iteratively build each layer's expression graph
+            this->inputs = input_vector;
             for(int i = 0; i < layers.size(); i++){
                 if(i==0){
                     layers[i]->compile(input_vector);
@@ -402,7 +404,13 @@ class Model{
                 }
             }
         }
-        vector<Value*> forward(){
+        vector<Value*> forward(vector<Value*> input_vector){
+            //inputs are embedded into the NN expression graph, so their value needs to be updated in-place
+            for(int i = 0; i < input_vector.size(); i++){
+                this->inputs[i]->data = input_vector[i]->data;
+                cout << inputs[i]->data << endl;
+            }
+
             for(Value* out:outputs){
                 out->inorderTraversal();
             }
@@ -416,40 +424,44 @@ class Model{
             last_layer->backward(out_grads);
             last_layer->visualizeGraph();
         }
-        float mean_squared_error(vector<float> & true_output, vector<Value*> & NN_output){
+        float mean_squared_error(vector<float> true_output, vector<Value*> NN_output){
             float MSE = 0.0;
             for(int i = 0; i < true_output.size();i++){
                 MSE += (true_output[i] - NN_output[i]->data) * (true_output[i] - NN_output[i]->data);
             }
             return MSE/true_output.size();
         }
-        float mean_squared_error_derivative(vector<float> & true_output, vector<Value*> & NN_output){
+        float mean_squared_error_derivative(vector<float> true_output, vector<Value*> NN_output){
             float MSE_derivative = 0.0;
             for(int i = 0; i < true_output.size();i++){
-                MSE_derivative += 2.0 * (true_output[i] - NN_output[i]->data);
+                MSE_derivative += 2.0 * (NN_output[i]->data - true_output[i]);
             }
             return MSE_derivative/true_output.size();
         }
-        // void train(vector<Value*> & X_train, vector<float> & Y_train, int num_epochs=1){
-        //     cout << "Starting Training..." << endl;
-        //     for(int i = 0; i < num_epochs; i++){
-        //         //1: forward pass
-        //         vector<Value*> NN_out = this->forward(X_train);
-        //         //2: calculate loss
-        //         float MSE = mean_squared_error(Y_train, NN_out);
-        //         vector<float> loss;
-        //         loss.push_back(mean_squared_error_derivative(Y_train, NN_out));
-        //         //3: backprop gradients and update weights
-        //         this->backward(loss);
-        //         cout << "banana" << endl;
-        //         //4: zero out gradients
-        //         Value dummy_tail = Value(0.0);
-        //         for(int j = 0; j < NN_out.size(); j++){
-        //             NN_out[j]->zero_grad();
-        //         }
-        //         cout << "banana" << endl;
-        //     }
-        // }
+        void train(vector<vector<Value*> > X_train, vector<vector<float> > & Y_train, int num_epochs=1){
+            cout << "Starting Training..." << endl;
+            for(int i = 0; i < num_epochs; i++){
+                for(int j = 0; j < X_train.size();j++){
+                    vector<float> true_output = Y_train[j];
+                    vector<Value*> input_vector = X_train[j];
+                     //1: forward pass
+                    vector<Value*> NN_out = this->forward(input_vector);
+                    cout << "NN output: " << NN_out[0]->data << endl;
+                    //2: calculate loss
+                    float MSE = mean_squared_error(true_output, NN_out);
+                    cout << "MSE: " << MSE << endl;
+                    vector<float> loss;
+                    loss.push_back(mean_squared_error_derivative(true_output, NN_out));
+                    //3: backprop gradients and update weights
+                    this->backward(loss);
+                    //4: zero out gradients
+                    Value dummy_tail = Value(0.0);
+                    for(int j = 0; j < NN_out.size(); j++){
+                        NN_out[j]->zero_grad();
+                    }
+                }
+            }
+        }
 };
 
 void expression_engine_demo(){
@@ -523,22 +535,28 @@ void linear_layer_demo(){
     l.visualizeGraph();
 }
 int main(){
-    int input_vector_length = 3;
-
-    //create input vector
-    vector<Value*> inputs;
-    for(int i = 0; i < input_vector_length; i++){
-        inputs.push_back(new Value(i));
-        inputs[i]->label = "input"; //label all the input nodes for visualization purposes
+    //create x_train
+    int input_vector_length = 1;
+    vector<vector<Value*> > X_train;
+    for(int i = 0; i < 100; i++){
+        vector<Value*> input;
+        input.push_back(new Value(i));
+        X_train.push_back(input);
+    }
+    //create y_train
+        vector<vector<float> > Y_train;
+    for(int i = 0; i < 100; i++){
+        vector<float> input;
+        input.push_back(i+0.0);
+        Y_train.push_back(input);
     }
     Model  m = * new Model(input_vector_length);
     m.add_layer("linear", 1);
-    m.add_layer("linear", 1);
-    m.compile(inputs);
-    vector<float> out_grads;
-    out_grads.push_back(1.0);
-    m.backward(out_grads);
-
+    m.compile(X_train[0]);
+    // m.forward(X_train[0]);
+    m.train(X_train, Y_train, 1);
+    // m.forward(X_train[99]);
+    //cout << m.outputs[0]->data << endl;
     return 0;
     /*
     Segfault occurs when visualizing the graph after doing 2 subsequent forward passes
@@ -560,6 +578,8 @@ int main(){
         -DONE
     -update model.forward and verify proper functionality for multi layer NN's
         -DONE
+    -training loop
+        -Fix this tmrw
     */
 
 };
