@@ -20,7 +20,7 @@ class Value{
         string operation;
         string label;
         float grad = 0.0;//very important to init gradients to zero, dont rely on the compiler to do this for you
-        float learning_rate = 0.005;
+        float learning_rate = 0.0005;
 
         Value(float data){
             this->data = data;
@@ -83,14 +83,21 @@ class Value{
                 }
             }
         }
-        Value tanh(){
+        Value *tanh(){
             float x = this->data;
             //tanh
             float t = (pow(2.718, (2.0*x)) - 1)/(pow(2.718,(2.0*x)) + 1);
-            Value out = Value(t);
-            out.operation = "tanh";
-            //add operands to output node as child nodes
-            out.prev.push_back(this);
+            Value * out = new Value(t);
+            out->operation = "tanh";
+            out->prev.push_back(this);
+            this->next = out;
+            return out;
+        }
+        Value *sigmoid(){
+            Value * out = new Value(1/(1+pow(2.71828, -1*this->data)));
+            out->operation = "sigmoid";
+            out->prev.push_back(this);
+            this->next = out;
             return out;
         }
         void backward(){
@@ -108,6 +115,9 @@ class Value{
             }
             else if (this->operation == "tanh"){
                 this->prev[0]->grad += (1 - pow(this->data,2)) * this->grad;
+            }
+            else if (this->operation == "sigmoid"){
+                this->prev[0]->grad += (this->data - (1-this->data)) * this->grad;
             }
         }
         void update_weight(){
@@ -249,7 +259,8 @@ class Neuron{
     public:
         int input_size = 0;
         vector<Value*> weights;
-        Value out = Value(0.0);
+        Value * out = new Value(0.0);
+        string activation = "";
 
         Neuron(int input_size){
             this->input_size = input_size;
@@ -260,25 +271,26 @@ class Neuron{
                 weights[i]->grad = 0.0;
             }
         }
-        void compile(vector<Value*> & input){
+        void compile(vector<Value*> & input, string activation=""){
             //builds the expression graph, by constructing the intermediate nodes sitting in between the output and weights/inputs
             for (int i = 0; i < input.size(); i++) {
                 //Use += to accumulate the sum of each weight[i]*input[i] product directly into out. Dont use +, as it creates intermediate 
                 //nodes for each pair of products. This causes the expression graph to become too unbalanced, and screws up gradient
                 //accumulation during backprop. This bug took me a month to solve, and only shows up when backpropping through larger multi-layer NN's
-                this->out += (*input[i] * weights[i]);
+                *this->out += (*input[i] * weights[i]);
             }
-            this->out.label = "output";
+            if (activation == "sigmoid"){
+                this->out =  this->out->sigmoid();
             }
+        }
         void forward(){
             //perform a forward pass: Sum(weight vector * input vector)
-            this->out.inorderTraversal();
-            this->out.label = "output";
+            this->out->inorderTraversal();
+            this->out->label = "output";
         }
 
         void backward(){
-            cout << "out gradient: " << this->out.grad << endl;
-            out.backprop();
+            out->backprop();
         }
 };
 
@@ -299,18 +311,20 @@ class Linear: public Layer{
         int output_size;
         vector<Neuron*> neurons;
         vector<Value*> outputs;
+        string activation = "";
 
-        Linear(int input_size, int output_size){
+        Linear(int input_size, int output_size,string activation=""){
             this->input_size = input_size;
             this->output_size = output_size;
+            this->activation = activation;
             for(int i = 0; i < output_size; i++){
                 neurons.push_back(new Neuron(input_size));
-                outputs.push_back(&(neurons[i]->out));
             }
         }
         void compile(vector<Value*> inputs){
             for(Neuron* n:neurons){
-                n->compile(inputs);
+                n->compile(inputs, this->activation);
+                outputs.push_back(n->out);
             }
         }
         void forward(){
@@ -324,7 +338,7 @@ class Linear: public Layer{
                 for(int j = 0; j < grads.size(); j++){
                     outputs[i]->grad += grads[j];
                 }
-            }  
+            }
             //backward pass gradients through each neuron
             vector<Value*> queue = this->outputs;
             //level order traversal backwards through the expression graph
@@ -408,7 +422,6 @@ class Model{
             //inputs are embedded into the NN expression graph, so their value needs to be updated in-place
             for(int i = 0; i < input_vector.size(); i++){
                 this->inputs[i]->data = input_vector[i]->data;
-                cout << inputs[i]->data << endl;
             }
 
             for(Value* out:outputs){
@@ -506,9 +519,9 @@ void single_neuron_demo(){
     Neuron* n = new Neuron(input_vector_length);
     n->forward();
     //Set output gradient and backpropagate
-    n->out.grad = 1.0;
+    n->out->grad = 1.0;
     n->backward();
-    n->out.visualizeGraph();
+    n->out->visualizeGraph();
 }
 
 void linear_layer_demo(){
@@ -547,23 +560,19 @@ int main(){
         vector<vector<float> > Y_train;
     for(int i = 0; i < 100; i++){
         vector<float> input;
-        input.push_back(i+0.0);
+        input.push_back(i*i);
         Y_train.push_back(input);
     }
-    Model  m = * new Model(input_vector_length);
-    m.add_layer("linear", 1);
-    m.compile(X_train[0]);
-    // m.forward(X_train[0]);
-    m.train(X_train, Y_train, 1);
-    // m.forward(X_train[99]);
-    //cout << m.outputs[0]->data << endl;
+    Linear l = * new Linear(1,1,"sigmoid");
+    l.compile(X_train[2]);
+    l.backward(Y_train[2]);
+    l.visualizeGraph();
     return 0;
     /*
     Segfault occurs when visualizing the graph after doing 2 subsequent forward passes
         verify graph connectivity
         implement a model.compile and make the graph bidirectional
             -signficant refactoring 
-    Alright lets take a page out of Capital One's book and break up this big task into smaller "stories"
     -add vector containing pointers to next nodes
         -DONE
     -update operators to add child nodes to the nextNode vector
@@ -579,7 +588,9 @@ int main(){
     -update model.forward and verify proper functionality for multi layer NN's
         -DONE
     -training loop
-        -Fix this tmrw
+        -DONE
+    Ok im gonna train MNIST using shahgrad. Need to implement sigmoid and softmax. I might have to implement some optimizers 
+    -update linear.compile to update layer output vector
     */
 
 };
