@@ -119,6 +119,11 @@ class Value{
             else if (this->operation == "sigmoid"){
                 this->prev[0]->grad += (this->data - (1-this->data)) * this->grad;
             }
+            else if (this->operation == "softmax"){
+                for(Value* v: prev){
+                    v->grad += this->grad;
+                }
+            }
         }
         void update_weight(){
             //only update the data field if its a weight node
@@ -321,10 +326,36 @@ class Linear: public Layer{
                 neurons.push_back(new Neuron(input_size));
             }
         }
+        vector<Value*> softmax(vector<Value*>inputs){
+            vector<Value*> out;
+            double sum = 0.0;
+            // Calculate exponentials and sum
+            for (Value* v : inputs) {
+                double exp_value = std::exp(v->data);
+                out.push_back(new Value(exp_value));
+                sum += exp_value;
+            }
+            // Normalize by dividing each exponential by the sum
+            for (int i = 0; i < out.size();i++) {
+                out[i]->data /= sum;
+                out[i]->operation = "softmax";
+                out[i]->prev.push_back(inputs[i]);
+            }
+            return out;
+        }
         void compile(vector<Value*> inputs){
-            for(Neuron* n:neurons){
-                n->compile(inputs, this->activation);
-                outputs.push_back(n->out);
+            if(this->activation == "softmax"){
+                for(Neuron* n:neurons){
+                    n->compile(inputs, this->activation);
+                    outputs.push_back(n->out);
+                }
+                outputs = softmax(outputs);
+            }
+            else{
+                for(Neuron* n:neurons){
+                    n->compile(inputs, this->activation);
+                    outputs.push_back(n->out);
+                }
             }
         }
         void forward(){
@@ -554,6 +585,7 @@ int main(){
     for(int i = 0; i < 100; i++){
         vector<Value*> input;
         input.push_back(new Value(i));
+        input.push_back(new Value(i));
         X_train.push_back(input);
     }
     //create y_train
@@ -561,9 +593,10 @@ int main(){
     for(int i = 0; i < 100; i++){
         vector<float> input;
         input.push_back(i*i);
+        input.push_back(i*i);
         Y_train.push_back(input);
     }
-    Linear l = * new Linear(1,1,"sigmoid");
+    Linear l = * new Linear(2,2,"softmax");
     l.compile(X_train[2]);
     l.backward(Y_train[2]);
     l.visualizeGraph();
@@ -590,7 +623,12 @@ int main(){
     -training loop
         -DONE
     Ok im gonna train MNIST using shahgrad. Need to implement sigmoid and softmax. I might have to implement some optimizers 
-    -update linear.compile to update layer output vector
+    -Sigmoid
+        -DONE
+    -update linear.compile to update layer outputs with softmax
+        -DONE
+    -softmax backward pass
+        -DONE
     */
 
 };
