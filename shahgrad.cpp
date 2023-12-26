@@ -20,7 +20,7 @@ class Value{
         string operation;
         string label;
         float grad = 0.0;//very important to init gradients to zero, dont rely on the compiler to do this for you
-        float learning_rate = 0.0005;
+        float learning_rate = 0.005;
 
         Value(float data){
             this->data = data;
@@ -77,7 +77,9 @@ class Value{
                         this->data *= prev[i]->data;
                     }
                 }
-
+                if (this->operation == "sigmoid"){
+                    this->data = 1/(1+pow(2.71828, -1*prev[0]->data));
+                }
                 for (Value* child : prev) {
                     child->inorderTraversal(); // Traverse right child
                 }
@@ -117,12 +119,7 @@ class Value{
                 this->prev[0]->grad += (1 - pow(this->data,2)) * this->grad;
             }
             else if (this->operation == "sigmoid"){
-                this->prev[0]->grad += (this->data - (1-this->data)) * this->grad;
-            }
-            else if (this->operation == "softmax"){
-                for(Value* v: prev){
-                    v->grad += this->grad;
-                }
+                this->prev[0]->grad += (this->data * (1-this->data)) * this->grad;
             }
         }
         void update_weight(){
@@ -302,23 +299,98 @@ class Neuron{
 class Layer{
     public:
         int input_size;
+        int output_size;
         vector<Value*> outputs;
-        void forward(vector<Value*> & inputs);
+        virtual void forward(vector<Value*> inputs){}
+        virtual void forward(){}
+        virtual void backward(vector<float> grads, bool accumulate=true){}
+        virtual void compile(vector<Value*> input_vector){}
+        virtual void visualizeGraph(){}
 };
 
+class Softmax: public Layer{
+    public:
+        Softmax(int input_size){
+            this->input_size = input_size;
+            this->output_size = input_size;
+        }
+        void compile(vector<Value*> inputs) override {
+            for (Value* v : inputs) {
+                Value* softmax_output = new Value(0.0);
+                softmax_output->operation = "softmax";
+                softmax_output->prev.push_back(v);
+                v->next = softmax_output;
+                outputs.push_back(softmax_output);
+            }
+        }
+        void forward() override {
+            float sum = 0.0;
+            // Calculate exponentials and sum
+            for (int i = 0; i < outputs.size();i++) {
+                float exp_value = std::exp(outputs[i]->prev[0]->data);
+                outputs[i]->data = exp_value;
+                sum += exp_value;
+            }
+            // Normalize by dividing each exponential by the sum
+            for (int i = 0; i < outputs.size();i++) {
+                outputs[i]->data = outputs[i]->data / sum;
+            }
+            // Kickstart forward pass process for previous layers
+            for (int i = 0; i < outputs.size();i++) {
+                outputs[i]->inorderTraversal();
+            }
+        }
+        void backward(vector<float> grads, bool accumulate=false) override {
+            for(int i = 0; i < outputs.size(); i++){
+                outputs[i]->grad = grads[i];
+                outputs[i]->prev[0]->grad = grads[i];
+            }
+            //backward pass gradients through each neuron
+            vector<Value*> queue = this->outputs;
+            //level order traversal backwards through the expression graph
+            while (queue.size() > 0){
+                Value* root = queue[0];
+                for(int i = 0; i < root->prev.size(); i++){
+                    Value* child = root->prev[i];
+                    bool unique = true;
+                    //make sure child isnt already in the queue
+                    for (int j = 0; j < queue.size(); j++){
+                        if(queue[j] == child){
+                            unique= false;
+                            break;
+                        }
+                    }
+                    if(unique==true){
+                        queue.push_back(child);
+                    }
+                }
+                //backward pass current node
+                root->backward();
+                //update weight
+                root->update_weight();
+                queue.erase(queue.begin() + 0);
+            }
+        }
+        void visualizeGraph(){
+            //create a dummy tail node containing pointers to all output nodes for the visualizer. Visualizer can only traverse the graph backwards starting from a single node.
+            Value dummy_tail = Value(0.0);
+            dummy_tail.label = "dummy tail node";
+            for(int i = 0; i < outputs.size(); i++){
+                dummy_tail.prev.push_back(outputs[i]);
+            }
+            dummy_tail.visualizeGraph();
+        }
+};
 class Linear: public Layer{
     /*
     Created a fully connected layer of neurons. Feeds an input vector through all the neurons in the layer during the forward pass, and backprops 
     gradients through the layer during the backward pass.
     */
     public:
-        int input_size;
-        int output_size;
         vector<Neuron*> neurons;
-        vector<Value*> outputs;
         string activation = "";
 
-        Linear(int input_size, int output_size,string activation=""){
+        Linear(int input_size, int output_size, string activation=""){
             this->input_size = input_size;
             this->output_size = output_size;
             this->activation = activation;
@@ -326,48 +398,27 @@ class Linear: public Layer{
                 neurons.push_back(new Neuron(input_size));
             }
         }
-        vector<Value*> softmax(vector<Value*>inputs){
-            vector<Value*> out;
-            double sum = 0.0;
-            // Calculate exponentials and sum
-            for (Value* v : inputs) {
-                double exp_value = std::exp(v->data);
-                out.push_back(new Value(exp_value));
-                sum += exp_value;
-            }
-            // Normalize by dividing each exponential by the sum
-            for (int i = 0; i < out.size();i++) {
-                out[i]->data /= sum;
-                out[i]->operation = "softmax";
-                out[i]->prev.push_back(inputs[i]);
-            }
-            return out;
-        }
-        void compile(vector<Value*> inputs){
-            if(this->activation == "softmax"){
-                for(Neuron* n:neurons){
-                    n->compile(inputs, this->activation);
-                    outputs.push_back(n->out);
-                }
-                outputs = softmax(outputs);
-            }
-            else{
-                for(Neuron* n:neurons){
-                    n->compile(inputs, this->activation);
-                    outputs.push_back(n->out);
-                }
+        void compile(vector<Value*> inputs) override {
+            for(Neuron* n:neurons){
+                n->compile(inputs, this->activation);
+                outputs.push_back(n->out);
             }
         }
-        void forward(){
+        void forward() override {
             for(Value* output:outputs){
                 output->inorderTraversal();
             }
         }
-        void backward(vector<float> grads){
+        void backward(vector<float> grads, bool accumulate=true) override {
             //accumulate gradients and pass to output neurons.
             for(int i = 0; i < this->outputs.size(); i++){
-                for(int j = 0; j < grads.size(); j++){
-                    outputs[i]->grad += grads[j];
+                if(accumulate == true){
+                    for(int j = 0; j < grads.size(); j++){
+                        outputs[i]->grad += grads[j];
+                    }
+                }
+                else{
+                    outputs[i]->grad = grads[i];
                 }
             }
             //backward pass gradients through each neuron
@@ -412,7 +463,7 @@ class Model{
     Slap together any combination of layers to form a neural net.
     */
     public:
-        vector<Linear*> layers;
+        vector<Layer*> layers;
         vector<Value*> inputs;
         vector<Value*> outputs;
         int input_size;
@@ -422,17 +473,25 @@ class Model{
             this->input_size = input_size;
         }
 
-        void add_layer(string layer_name, int output_size){
+        void add_layer(string layer_name, int output_size=1, string activation=""){
             if(layer_name == "linear"){
                 if(layers.size() == 0){
-                    Linear * new_layer = new Linear(this->input_size, output_size);
+                    Linear * new_layer = new Linear(this->input_size, output_size, activation);
                     layers.push_back(new_layer);
-                    this->outputs = new_layer->outputs;
                 }
                 else{
-                    Linear * new_layer = new Linear(layers.back()->outputs.size(), output_size);
+                    Linear * new_layer = new Linear(layers.back()->outputs.size(), output_size, activation);
                     layers.push_back(new_layer);
-                    this->outputs = new_layer->outputs;
+                }
+            }
+            else if(layer_name == "softmax"){
+                if(layers.size() == 0){
+                    Softmax * new_layer = new Softmax(this->input_size);
+                    layers.push_back(new_layer);
+                }
+                else{
+                    Softmax * new_layer = new Softmax(layers.back()->outputs.size());
+                    layers.push_back(new_layer);
                 }
             }
         }
@@ -448,24 +507,24 @@ class Model{
                     layers[i]->compile(layers[i-1]->outputs);
                 }
             }
+            this->outputs = layers.back()->outputs;
         }
         vector<Value*> forward(vector<Value*> input_vector){
-            //inputs are embedded into the NN expression graph, so their value needs to be updated in-place
+            //inputs are embedded into the NN expression graph, so their "data" field needs to be updated in-place
             for(int i = 0; i < input_vector.size(); i++){
                 this->inputs[i]->data = input_vector[i]->data;
             }
-
-            for(Value* out:outputs){
-                out->inorderTraversal();
-            }
+            layers.back()->forward();
             return outputs;
         }
         void backward(vector<float> out_grads){
             /*
             backprop gradients throughout the entire neural net's expression graph
             */
-            Linear * last_layer = layers.back();
-            last_layer->backward(out_grads);
+            Layer * last_layer = layers.back();
+            //generally, the gradient of each layers output node is the sum of all the gradients in the next layer's input nodes. 
+            //This is not the case of the last layer in the NN, as we want to manually set each output gradient. That special case is handled here
+            last_layer->backward(out_grads, false);
             last_layer->visualizeGraph();
         }
         float mean_squared_error(vector<float> true_output, vector<Value*> NN_output){
@@ -482,6 +541,31 @@ class Model{
             }
             return MSE_derivative/true_output.size();
         }
+        vector<float> categoricalCrossEntropy(const std::vector<float>& true_probs, const std::vector<Value*>& predicted_probs) {
+            vector<float> loss;
+            if (predicted_probs.size() != true_probs.size()) {
+                std::cerr << "Error: Input vectors must have the same size." << std::endl;
+            }
+            for (size_t i = 0; i < predicted_probs.size(); ++i) {
+                // Avoid log(0) by adding a small epsilon
+                double epsilon = 1e-8;
+                loss.push_back(-true_probs[i] * std::log(predicted_probs[i]->data + epsilon));
+            }
+
+            return loss;
+        }
+
+        vector<float> categoricalCrossEntropyDerivative(const std::vector<float>& true_probs, const std::vector<Value*>& predicted_probs) {
+            vector<float> derivative;
+            if (predicted_probs.size() != true_probs.size()) {
+                std::cerr << "Error: Input vectors must have the same size." << std::endl;
+            }
+            for (size_t i = 0; i < predicted_probs.size(); ++i) {
+                derivative.push_back(predicted_probs[i]->data - true_probs[i]);
+            }
+
+            return derivative;
+        }
         void train(vector<vector<Value*> > X_train, vector<vector<float> > & Y_train, int num_epochs=1){
             cout << "Starting Training..." << endl;
             for(int i = 0; i < num_epochs; i++){
@@ -490,12 +574,14 @@ class Model{
                     vector<Value*> input_vector = X_train[j];
                      //1: forward pass
                     vector<Value*> NN_out = this->forward(input_vector);
-                    cout << "NN output: " << NN_out[0]->data << endl;
                     //2: calculate loss
-                    float MSE = mean_squared_error(true_output, NN_out);
-                    cout << "MSE: " << MSE << endl;
-                    vector<float> loss;
-                    loss.push_back(mean_squared_error_derivative(true_output, NN_out));
+                    vector<float> CCE = categoricalCrossEntropy(true_output, NN_out);
+                    cout << "CCE: ";
+                    for(float loss:CCE){
+                        cout << " " << loss;
+                    }
+                    cout << endl;
+                    vector<float> loss = categoricalCrossEntropyDerivative(true_output, NN_out);
                     //3: backprop gradients and update weights
                     this->backward(loss);
                     //4: zero out gradients
@@ -580,7 +666,7 @@ void linear_layer_demo(){
 }
 int main(){
     //create x_train
-    int input_vector_length = 1;
+    int input_vector_length = 2;
     vector<vector<Value*> > X_train;
     for(int i = 0; i < 100; i++){
         vector<Value*> input;
@@ -592,14 +678,16 @@ int main(){
         vector<vector<float> > Y_train;
     for(int i = 0; i < 100; i++){
         vector<float> input;
-        input.push_back(i*i);
-        input.push_back(i*i);
+        input.push_back(0);
+        input.push_back(1);
         Y_train.push_back(input);
     }
-    Linear l = * new Linear(2,2,"softmax");
-    l.compile(X_train[2]);
-    l.backward(Y_train[2]);
-    l.visualizeGraph();
+    Model m = * new Model(input_vector_length);
+    m.add_layer("linear", 2, "sigmoid");
+    m.add_layer("softmax");
+    m.compile(X_train[0]);
+    m.layers.back()->visualizeGraph();
+    m.train(X_train, Y_train,5);
     return 0;
     /*
     Segfault occurs when visualizing the graph after doing 2 subsequent forward passes
@@ -629,6 +717,24 @@ int main(){
         -DONE
     -softmax backward pass
         -DONE
-    */
+    -categorical crossentropy
+        -validate calculation
+        -validate derivative calculation
+        -DONE
+    -Sigmoid
+        -Ok theres a strange issue. L1.out is populated during linear.compile(), but then magically gets emptied when I try accessing that
+        data member outside the class. Look closely at linear.compile and model.compile. Figure out why data members are being erased
+        -try reading other data members outside the class. If its indeed being wiped, maybe its happening to all data members
+        -Swap order of layers
+            -Oh yea the problem def has to do with data members being wiped. probably a parent/child class issue
+        -Fixed, forgot to add the "virtual" and "override" labels
+    Other bugs fixed:
+        -Moved softmax into its own layer
+        -Fixed polymorphism issues
+        -Softmax derivative and sigmoid calculations had typos
+        -Gradients wouldnt flow past the sigmoid layer
+        -Softmax would disconnect the expression graph
+        -Categorical crossentropy derivative calculation had a mistake
+        */
 
 };
