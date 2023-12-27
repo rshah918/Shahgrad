@@ -273,7 +273,7 @@ class Neuron{
                 weights[i]->grad = 0.0;
             }
         }
-        void compile(vector<Value*> & input, string activation=""){
+        void compile(vector<Value*> input, string activation=""){
             //builds the expression graph, by constructing the intermediate nodes sitting in between the output and weights/inputs
             for (int i = 0; i < input.size(); i++) {
                 //Use += to accumulate the sum of each weight[i]*input[i] product directly into out. Dont use +, as it creates intermediate 
@@ -480,7 +480,7 @@ class Model{
                     layers.push_back(new_layer);
                 }
                 else{
-                    Linear * new_layer = new Linear(layers.back()->outputs.size(), output_size, activation);
+                    Linear * new_layer = new Linear(layers.back()->output_size, output_size, activation);
                     layers.push_back(new_layer);
                 }
             }
@@ -490,7 +490,7 @@ class Model{
                     layers.push_back(new_layer);
                 }
                 else{
-                    Softmax * new_layer = new Softmax(layers.back()->outputs.size());
+                    Softmax * new_layer = new Softmax(layers.back()->output_size);
                     layers.push_back(new_layer);
                 }
             }
@@ -683,11 +683,17 @@ int main(){
         Y_train.push_back(input);
     }
     Model m = * new Model(input_vector_length);
-    m.add_layer("linear", 2, "sigmoid");
+    m.add_layer("linear", 2, "");
+    m.add_layer("linear", 5, "");
+    m.add_layer("linear", 2, "");
+    m.add_layer("linear", 2, "");
+    m.add_layer("linear", 2, "");
+    m.add_layer("linear", 2, "");
+    m.add_layer("linear", 2, "");
     m.add_layer("softmax");
     m.compile(X_train[0]);
     m.layers.back()->visualizeGraph();
-    m.train(X_train, Y_train,5);
+    //m.train(X_train, Y_train,5);
     return 0;
     /*
     Segfault occurs when visualizing the graph after doing 2 subsequent forward passes
@@ -735,6 +741,8 @@ int main(){
         -Gradients wouldnt flow past the sigmoid layer
         -Softmax would disconnect the expression graph
         -Categorical crossentropy derivative calculation had a mistake
+    Ok now I can go ahead with MNIST
+        -Damn maybe i need to add support for biases...
         */
 
 };
