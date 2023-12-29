@@ -20,7 +20,7 @@ class Value{
         string operation;
         string label;
         float grad = 0.0;//very important to init gradients to zero, dont rely on the compiler to do this for you
-        float learning_rate = 0.005;
+        float learning_rate = 0.1;
 
         Value(float data){
             this->data = data;
@@ -525,7 +525,6 @@ class Model{
             //generally, the gradient of each layers output node is the sum of all the gradients in the next layer's input nodes. 
             //This is not the case of the last layer in the NN, as we want to manually set each output gradient. That special case is handled here
             last_layer->backward(out_grads, false);
-            last_layer->visualizeGraph();
         }
         float mean_squared_error(vector<float> true_output, vector<Value*> NN_output){
             float MSE = 0.0;
@@ -590,6 +589,7 @@ class Model{
                         NN_out[j]->zero_grad();
                     }
                 }
+                layers.back()->visualizeGraph();
             }
         }
 };
@@ -664,85 +664,90 @@ void linear_layer_demo(){
     l.backward(out_grads);
     l.visualizeGraph();
 }
-int main(){
-    //create x_train
-    int input_vector_length = 2;
-    vector<vector<Value*> > X_train;
-    for(int i = 0; i < 100; i++){
-        vector<Value*> input;
-        input.push_back(new Value(i));
-        input.push_back(new Value(i));
-        X_train.push_back(input);
-    }
-    //create y_train
-        vector<vector<float> > Y_train;
-    for(int i = 0; i < 100; i++){
-        vector<float> input;
-        input.push_back(0);
-        input.push_back(1);
-        Y_train.push_back(input);
-    }
-    Model m = * new Model(input_vector_length);
-    m.add_layer("linear", 2, "");
-    m.add_layer("linear", 5, "");
-    m.add_layer("linear", 2, "");
-    m.add_layer("linear", 2, "");
-    m.add_layer("linear", 2, "");
-    m.add_layer("linear", 2, "");
-    m.add_layer("linear", 2, "");
-    m.add_layer("softmax");
-    m.compile(X_train[0]);
-    m.layers.back()->visualizeGraph();
-    //m.train(X_train, Y_train,5);
-    return 0;
-    /*
-    Segfault occurs when visualizing the graph after doing 2 subsequent forward passes
-        verify graph connectivity
-        implement a model.compile and make the graph bidirectional
-            -signficant refactoring 
-    -add vector containing pointers to next nodes
-        -DONE
-    -update operators to add child nodes to the nextNode vector
-        -DONE
-    -update neuron.forward to forward pass results through the graph 
-        -DONE
-    -update linear.forward 
-        -DONE
-    -implement linear.compile
-        -DONE
-    -update model.compile to make sure nextNode vectors at layer outputs are properly populated
-        -DONE
-    -update model.forward and verify proper functionality for multi layer NN's
-        -DONE
-    -training loop
-        -DONE
-    Ok im gonna train MNIST using shahgrad. Need to implement sigmoid and softmax. I might have to implement some optimizers 
-    -Sigmoid
-        -DONE
-    -update linear.compile to update layer outputs with softmax
-        -DONE
-    -softmax backward pass
-        -DONE
-    -categorical crossentropy
-        -validate calculation
-        -validate derivative calculation
-        -DONE
-    -Sigmoid
-        -Ok theres a strange issue. L1.out is populated during linear.compile(), but then magically gets emptied when I try accessing that
-        data member outside the class. Look closely at linear.compile and model.compile. Figure out why data members are being erased
-        -try reading other data members outside the class. If its indeed being wiped, maybe its happening to all data members
-        -Swap order of layers
-            -Oh yea the problem def has to do with data members being wiped. probably a parent/child class issue
-        -Fixed, forgot to add the "virtual" and "override" labels
-    Other bugs fixed:
-        -Moved softmax into its own layer
-        -Fixed polymorphism issues
-        -Softmax derivative and sigmoid calculations had typos
-        -Gradients wouldnt flow past the sigmoid layer
-        -Softmax would disconnect the expression graph
-        -Categorical crossentropy derivative calculation had a mistake
-    Ok now I can go ahead with MNIST
-        -Damn maybe i need to add support for biases...
-        */
-
-};
+// int main(){
+//     //create x_train
+//     int input_vector_length = 2;
+//     vector<vector<Value*> > X_train;
+//     for(int i = 0; i < 100; i++){
+//         vector<Value*> input;
+//         input.push_back(new Value(i));
+//         input.push_back(new Value(i));
+//         X_train.push_back(input);
+//     }
+//     //create y_train
+//         vector<vector<float> > Y_train;
+//     for(int i = 0; i < 100; i++){
+//         vector<float> input;
+//         input.push_back(0);
+//         input.push_back(1);
+//         Y_train.push_back(input);
+//     }
+//     Model m = * new Model(input_vector_length);
+//     m.add_layer("linear", 2, "");
+//     m.add_layer("linear", 5, "");
+//     m.add_layer("linear", 2, "");
+//     m.add_layer("linear", 2, "");
+//     m.add_layer("linear", 2, "");
+//     m.add_layer("linear", 2, "");
+//     m.add_layer("linear", 2, "");
+//     m.add_layer("softmax");
+//     m.compile(X_train[0]);
+//     m.layers.back()->visualizeGraph();
+//     //m.train(X_train, Y_train,5);
+//     return 0;
+//     /*
+//     Segfault occurs when visualizing the graph after doing 2 subsequent forward passes
+//         verify graph connectivity
+//         implement a model.compile and make the graph bidirectional
+//             -signficant refactoring 
+//     -add vector containing pointers to next nodes
+//         -DONE
+//     -update operators to add child nodes to the nextNode vector
+//         -DONE
+//     -update neuron.forward to forward pass results through the graph 
+//         -DONE
+//     -update linear.forward 
+//         -DONE
+//     -implement linear.compile
+//         -DONE
+//     -update model.compile to make sure nextNode vectors at layer outputs are properly populated
+//         -DONE
+//     -update model.forward and verify proper functionality for multi layer NN's
+//         -DONE
+//     -training loop
+//         -DONE
+//     Ok im gonna train MNIST using shahgrad. Need to implement sigmoid and softmax. I might have to implement some optimizers 
+//     -Sigmoid
+//         -DONE
+//     -update linear.compile to update layer outputs with softmax
+//         -DONE
+//     -softmax backward pass
+//         -DONE
+//     -categorical crossentropy
+//         -validate calculation
+//         -validate derivative calculation
+//         -DONE
+//     -Sigmoid
+//         -Ok theres a strange issue. L1.out is populated during linear.compile(), but then magically gets emptied when I try accessing that
+//         data member outside the class. Look closely at linear.compile and model.compile. Figure out why data members are being erased
+//         -try reading other data members outside the class. If its indeed being wiped, maybe its happening to all data members
+//         -Swap order of layers
+//             -Oh yea the problem def has to do with data members being wiped. probably a parent/child class issue
+//         -Fixed, forgot to add the "virtual" and "override" labels
+//     Other bugs fixed:
+//         -Moved softmax into its own layer
+//         -Fixed polymorphism issues
+//         -Softmax derivative and sigmoid calculations had typos
+//         -Gradients wouldnt flow past the sigmoid layer
+//         -Softmax would disconnect the expression graph
+//         -Categorical crossentropy derivative calculation had a mistake
+//     Ok now I can go ahead with MNIST
+//         -DONE
+//     Training is super slow. Need to parallelize. Main priority is to minimize codebase complexity and lines of code. 
+//         */
+//     Never mind, found a smaller MNIST with 10x10 images. Training speed is reasonable. Wont optimize performance as this library is 
+//         meant to optimize for verbosity and simplicity
+//      Validation loop
+//      Model save/load
+//      Clean up repo and try to reduce lines of code
+// };
