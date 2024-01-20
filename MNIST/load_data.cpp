@@ -70,10 +70,8 @@ std::pair<std::vector<std::vector<Value*>>, std::vector<std::vector<float>>> loa
     return std::make_pair(x_train, y_train);
 }
 
-
 Model * createModel(){
     Model * m = new Model(100);
-    m->add_layer("linear", 64);
     m->add_layer("linear", 10);
     m->add_layer("softmax", 10);
     return m;
@@ -99,11 +97,9 @@ int main(){
     cout << "Model shape: " << endl;
     cout <<  m->layers[0]->input_size << endl;
     cout <<  m->layers[0]->output_size << endl;
-    cout <<  m->layers[1]->input_size << endl;
-    cout <<  m->layers[1]->output_size << endl;
     cout <<  m->layers.back()->output_size << endl;
-    m->train(x_train, y_train, 1);
-    m->layers.back()->visualizeGraph();
+    m->train(x_train, y_train, 5);
+    //m->layers.back()->visualizeGraph();
     return 0;
 }
 /*
