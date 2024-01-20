@@ -20,7 +20,7 @@ class Value{
         string operation;
         string label;
         float grad = 0.0;//very important to init gradients to zero, dont rely on the compiler to do this for you
-        float learning_rate = 0.1;
+        float learning_rate = 0.01;
 
         Value(float data){
             this->data = data;
@@ -371,7 +371,7 @@ class Softmax: public Layer{
                 queue.erase(queue.begin() + 0);
             }
         }
-        void visualizeGraph(){
+        void visualizeGraph() override {
             //create a dummy tail node containing pointers to all output nodes for the visualizer. Visualizer can only traverse the graph backwards starting from a single node.
             Value dummy_tail = Value(0.0);
             dummy_tail.label = "dummy tail node";
@@ -447,7 +447,7 @@ class Linear: public Layer{
                 queue.erase(queue.begin() + 0);
             }
         }
-        void visualizeGraph(){
+        void visualizeGraph() override {
             //create a dummy tail node containing pointers to all output nodes for the visualizer. Visualizer can only traverse the graph backwards starting from a single node.
             Value dummy_tail = Value(0.0);
             dummy_tail.label = "dummy tail node";
@@ -540,18 +540,18 @@ class Model{
             }
             return MSE_derivative/true_output.size();
         }
-        vector<float> categoricalCrossEntropy(const std::vector<float>& true_probs, const std::vector<Value*>& predicted_probs) {
-            vector<float> loss;
+        float categoricalCrossEntropy(const std::vector<float>& true_probs, const std::vector<Value*>& predicted_probs) {
+            float loss;
             if (predicted_probs.size() != true_probs.size()) {
                 std::cerr << "Error: Input vectors must have the same size." << std::endl;
             }
             for (size_t i = 0; i < predicted_probs.size(); ++i) {
                 // Avoid log(0) by adding a small epsilon
                 double epsilon = 1e-8;
-                loss.push_back(-true_probs[i] * std::log(predicted_probs[i]->data + epsilon));
+                loss += true_probs[i] * std::log(predicted_probs[i]->data + epsilon);
             }
 
-            return loss;
+            return loss * -1;
         }
 
         vector<float> categoricalCrossEntropyDerivative(const std::vector<float>& true_probs, const std::vector<Value*>& predicted_probs) {
@@ -573,13 +573,10 @@ class Model{
                     vector<Value*> input_vector = X_train[j];
                      //1: forward pass
                     vector<Value*> NN_out = this->forward(input_vector);
+                    cout << NN_out[0]->data << " " << NN_out[1]->data << endl;
                     //2: calculate loss
-                    vector<float> CCE = categoricalCrossEntropy(true_output, NN_out);
-                    cout << "CCE: ";
-                    for(float loss:CCE){
-                        cout << " " << loss;
-                    }
-                    cout << endl;
+                    float CCE = categoricalCrossEntropy(true_output, NN_out);
+                    cout << "CCE: " << " " << CCE << endl;
                     vector<float> loss = categoricalCrossEntropyDerivative(true_output, NN_out);
                     //3: backprop gradients and update weights
                     this->backward(loss);
@@ -589,7 +586,7 @@ class Model{
                         NN_out[j]->zero_grad();
                     }
                 }
-                layers.back()->visualizeGraph();
+                //layers.back()->visualizeGraph();
             }
         }
 };
