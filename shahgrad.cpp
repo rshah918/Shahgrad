@@ -60,7 +60,6 @@ class Value{
         }
         void inorderTraversal() {
             // Perform an inorder traversal to forward propagate inputs 
-            if (this != nullptr) {
                 for (Value* child : prev) {
                     child->inorderTraversal(); // Traverse left child
                 }
@@ -83,7 +82,6 @@ class Value{
                 for (Value* child : prev) {
                     child->inorderTraversal(); // Traverse right child
                 }
-            }
         }
         Value *tanh(){
             float x = this->data;
