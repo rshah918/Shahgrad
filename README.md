@@ -9,6 +9,7 @@ For quick start, MNIST training code is included in `/MNIST`:
 
 3: `./a.out`
 
+<img width="800" alt="Screenshot 2024-02-11 at 3 06 00 PM" src="https://github.com/rshah918/Shahgrad/assets/20956909/57b4e1c7-b830-430d-92db-e728f136939d">
 
 
 Made this to better understand how pytorch/tensorflow work under the hood. 
@@ -49,7 +50,7 @@ Made this to better understand how pytorch/tensorflow work under the hood.
 
 
 ### Neuron Demo
-#### Forward pass inputs through a neuron, and view its expression graph and gradients: 
+#### Forward pass inputs through a neuron, view its expression graph and gradients, and perform backprop: 
 ```
     /*
     Demo of a single neuron forward/backward pass + visualization
@@ -76,9 +77,6 @@ Made this to better understand how pytorch/tensorflow work under the hood.
 ##### expression_graph.png
 <img width="973" alt="Screenshot 2023-11-11 at 9 06 31 AM" src="https://github.com/rshah918/Shahgrad/assets/20956909/e7898c6c-4ed5-4cce-947c-429982b79eec">
 
-### Single Neuron Demo
-#### Forward pass inputs through a neuron, and view its expression graph and gradients: 
-
 ### Neural Net Demo
 #### Create arbitrary neural nets by leveraging the shahgrad gradient engine:
 ```
@@ -103,10 +101,12 @@ Made this to better understand how pytorch/tensorflow work under the hood.
     }
     //create model
     Model m = * new Model(input_vector_length);
-    m.add_layer("linear", 1, "");
+    m.add_layer("linear", 5, "");
     m.add_layer("linear", 1, "");
     m.compile(X_train[0]);
     //train and visualize
     m.train(X_train, Y_train,40, learning_rate = 0.0000000001, "mean_squared_error"); //disgustingly low lr, results in exploding grad otherwise
     m.layers.back()->visualizeGraph();
 ```
+
+<img width="1186" alt="Screenshot 2024-02-11 at 3 27 07 PM" src="https://github.com/rshah918/Shahgrad/assets/20956909/cb96199b-3fbc-4faa-93f9-191f501f41cf">
