@@ -4,7 +4,10 @@
 #include<math.h>
 #include <fstream>
 #include <unordered_set>
+#include <ctime>
 using namespace std;
+
+float learning_rate; //using a global var is actually the cleaner approach here. Alternative is to propagate it through all the layers of abstraction, which is messier.
 
 class Value{
     /* 
@@ -19,8 +22,7 @@ class Value{
         Value* next;
         string operation;
         string label;
-        float grad = 0.0;//very important to init gradients to zero, dont rely on the compiler to do this for you
-        float learning_rate = 0.01;
+        float grad = 0.00;
 
         Value(float data){
             this->data = data;
@@ -123,7 +125,7 @@ class Value{
         void update_weight(){
             //only update the data field if its a weight node
             if(this->label == "weight"){
-                this->data -= this->learning_rate * this->grad;
+                this->data -= learning_rate * this->grad;
             }
         }
         void backprop(){
@@ -264,9 +266,14 @@ class Neuron{
 
         Neuron(int input_size){
             this->input_size = input_size;
-            //initialize all weights to 1.0 for now. Change later so its random
+            //randomly initialize weights
+            srand(std::time(0));
             for(int i = 0; i < input_size; i++){
-                this->weights.push_back(new Value(0.01));
+                std::random_device rd; // obtain a random number from hardware
+                std::mt19937 gen(rd()); // seed the generator
+                std::uniform_int_distribution<> distr(0, 1); // define the range
+                double r = distr(gen);
+                this->weights.push_back(new Value(r));
                 weights[i]->label = "weight";
                 weights[i]->grad = 0.0;
             }
@@ -322,10 +329,17 @@ class Softmax: public Layer{
             }
         }
         void forward() override {
+            //get max value
+            float max = 0.0;
+            for (int i = 0; i < outputs.size();i++) {
+                if (outputs[i]->prev[0]->data > max){
+                    max = outputs[i]->prev[0]->data;
+                }
+            }
             float sum = 0.0;
             // Calculate exponentials and sum
             for (int i = 0; i < outputs.size();i++) {
-                float exp_value = std::exp(outputs[i]->prev[0]->data);
+                float exp_value = std::exp(outputs[i]->prev[0]->data - max);
                 outputs[i]->data = exp_value;
                 sum += exp_value;
             }
@@ -498,6 +512,7 @@ class Model{
             //iteratively build each layer's expression graph
             this->inputs = input_vector;
             for(int i = 0; i < layers.size(); i++){
+                //first layer is a special case, as it needs to be conjoined with the input vector
                 if(i==0){
                     layers[i]->compile(input_vector);
                 }
@@ -512,7 +527,8 @@ class Model{
             for(int i = 0; i < input_vector.size(); i++){
                 this->inputs[i]->data = input_vector[i]->data;
             }
-            layers.back()->forward();
+            //forward prop is implemented as an inorder traversal, so initiate inference from the last layer in NN
+            layers.back()->forward(); 
             return outputs;
         }
         void backward(vector<float> out_grads){
@@ -524,225 +540,101 @@ class Model{
             //This is not the case of the last layer in the NN, as we want to manually set each output gradient. That special case is handled here
             last_layer->backward(out_grads, false);
         }
+        void print_vector(vector<float> vec){
+            //utility function to print out float vectors. Why isn't this built in std:vector??? 
+            cout << " | ";
+            for(int i = 0;i < vec.size(); i++){
+                cout << vec[i] << " | ";
+            }
+            cout << endl;
+        }
+        void print_vector(vector<Value*> vec){
+            //utility function to print out Value vectors
+            cout << " | ";
+            for(int i = 0;i < vec.size(); i++){
+                cout << vec[i]->data << " | ";
+            }
+            cout << endl;
+        }
         float mean_squared_error(vector<float> true_output, vector<Value*> NN_output){
+            if (NN_output.size() != true_output.size()) {
+                std::cerr << "Error: NN output vector and true output vector must have the same size." << std::endl;
+            }
             float MSE = 0.0;
             for(int i = 0; i < true_output.size();i++){
                 MSE += (true_output[i] - NN_output[i]->data) * (true_output[i] - NN_output[i]->data);
             }
-            return MSE/true_output.size();
+            MSE = MSE/true_output.size();
+            cout << "MSE: " << MSE << endl;
+            return MSE;
         }
-        float mean_squared_error_derivative(vector<float> true_output, vector<Value*> NN_output){
-            float MSE_derivative = 0.0;
-            for(int i = 0; i < true_output.size();i++){
-                MSE_derivative += 2.0 * (NN_output[i]->data - true_output[i]);
+        vector<float> mean_squared_error_derivative(vector<float> true_output, vector<Value*> NN_output){
+            if (NN_output.size() != true_output.size()) {
+                std::cerr << "Error: NN output vector and true output vector must have the same size." << std::endl;
             }
-            return MSE_derivative/true_output.size();
+            vector<float> MSE_derivative;
+            for(int i = 0; i < true_output.size();i++){
+                MSE_derivative.push_back((2.0 * (NN_output[i]->data - true_output[i]))/true_output.size());
+            }
+            return MSE_derivative;
         }
         float categoricalCrossEntropy(const std::vector<float>& true_probs, const std::vector<Value*>& predicted_probs) {
-            float loss;
             if (predicted_probs.size() != true_probs.size()) {
-                std::cerr << "Error: Input vectors must have the same size." << std::endl;
+                std::cerr << "Error: NN output vector and true output vector must have the same size." << std::endl;
             }
-            for (size_t i = 0; i < predicted_probs.size(); ++i) {
+            float CCE;
+            for (int i = 0; i < predicted_probs.size(); i++) {
                 // Avoid log(0) by adding a small epsilon
                 double epsilon = 1e-8;
-                loss += true_probs[i] * std::log(predicted_probs[i]->data + epsilon);
+                CCE += true_probs[i] * std::log10(predicted_probs[i]->data + epsilon);
             }
-
-            return loss * -1;
+            CCE = (-1 * (CCE/predicted_probs.size()));
+            cout << "CCE loss: " << CCE << endl;
+            return CCE;
         }
 
         vector<float> categoricalCrossEntropyDerivative(const std::vector<float>& true_probs, const std::vector<Value*>& predicted_probs) {
-            vector<float> derivative;
             if (predicted_probs.size() != true_probs.size()) {
-                std::cerr << "Error: Input vectors must have the same size." << std::endl;
+                std::cerr << "Error: NN output vector and true output vector must have the same size." << std::endl;
             }
-            for (size_t i = 0; i < predicted_probs.size(); ++i) {
+            vector<float> derivative;
+            for (int i = 0; i < predicted_probs.size(); i++) {
                 derivative.push_back(predicted_probs[i]->data - true_probs[i]);
             }
-
             return derivative;
         }
-        void train(vector<vector<Value*> > X_train, vector<vector<float> > & Y_train, int num_epochs=1){
+        void train(vector<vector<Value*> > X_train, vector<vector<float> > & Y_train, int num_epochs=1, float learning_rate=0.01, string loss_function="mean_squared_error"){
             cout << "Starting Training..." << endl;
+            learning_rate = ::learning_rate;//set the global learning rate var. Entire expression graph will use it
             for(int i = 0; i < num_epochs; i++){
                 for(int j = 0; j < X_train.size();j++){
                     vector<float> true_output = Y_train[j];
                     vector<Value*> input_vector = X_train[j];
                      //1: forward pass
                     vector<Value*> NN_out = this->forward(input_vector);
-                    cout << NN_out[0]->data << " " << NN_out[1]->data << endl;
+                    cout << "Predicted: ";
+                    print_vector(NN_out);
+                    cout << "Correct:   ";
+                    print_vector(true_output);
                     //2: calculate loss
-                    float CCE = categoricalCrossEntropy(true_output, NN_out);
-                    cout << "CCE: " << " " << CCE << endl;
-                    vector<float> loss = categoricalCrossEntropyDerivative(true_output, NN_out);
+                    float loss;
+                    vector<float> loss_derivative;
+                    if (loss_function == "mean_squared_error"){
+                            loss = mean_squared_error(true_output, NN_out);
+                            loss_derivative = mean_squared_error_derivative(true_output, NN_out);
+                    }
+                    else if(loss_function == "categorical_cross_entropy"){
+                        loss = categoricalCrossEntropy(true_output, NN_out);
+                        loss_derivative = categoricalCrossEntropyDerivative(true_output, NN_out);
+                    }
                     //3: backprop gradients and update weights
-                    this->backward(loss);
+                    this->backward(loss_derivative);
                     //4: zero out gradients
                     Value dummy_tail = Value(0.0);
                     for(int j = 0; j < NN_out.size(); j++){
                         NN_out[j]->zero_grad();
                     }
                 }
-                //layers.back()->visualizeGraph();
             }
         }
 };
-
-void expression_engine_demo(){
-    //Demonstration of the gradient engine
-    //inputs
-    Value a = Value(2);
-    Value b = Value(3);
-    Value c = Value(-3);
-    Value d = Value(1);
-
-    //expression
-    Value * a_times_b = a * &b;
-    a_times_b->label = "a times b";
-    Value * c_times_d = c * &d;
-    c_times_d->label = "c times d";
-    Value * res = *a_times_b + c_times_d;
-    res->label = "output";
-
-    res->grad = 1.0; //init root node grad to 1
-
-    //backprop and visualize
-    res->backprop();
-    res->visualizeGraph();
-}
-
-void single_neuron_demo(){
-    /*
-    Demo of a single neuron forward/backward pass + visualization
-    */
-    vector<Value*> inputs;
-    inputs.push_back(new Value(1.0));
-    inputs.push_back(new Value(2.0));
-    inputs.push_back(new Value(3.0));
-    inputs.push_back(new Value(4.0));
-    inputs.push_back(new Value(5.0));
-    //label all the inputs
-    for(int i = 0; i < inputs.size(); i++){
-        inputs[i]->label = "input";
-    }
-    //Instantiate Neuron and forward pass
-    int input_vector_length = inputs.size();
-    Neuron* n = new Neuron(input_vector_length);
-    n->forward();
-    //Set output gradient and backpropagate
-    n->out->grad = 1.0;
-    n->backward();
-    n->out->visualizeGraph();
-}
-
-void linear_layer_demo(){
-    /*
-    Demo of a Linear layer
-    */
-    vector<Value*> inputs;
-    //create input vector
-    int input_vector_length = 2;
-    for(int i = 0; i < input_vector_length; i++){
-        inputs.push_back(new Value(i + 1.0));
-        inputs[i]->label = "input"; //label all the input nodes for visualization purposes
-    }
-    int output_size = 3;
-    Linear l = Linear(input_vector_length, output_size);
-    l.forward();
-    cout << (l.outputs[0]->data) << endl;
-    //initialize output gradients to 1
-    vector<float> out_grads;
-    for(int i = 0; i < output_size;i++){
-        out_grads.push_back(1.0/(output_size-1));
-    }
-    l.backward(out_grads);
-    l.visualizeGraph();
-}
-// int main(){
-//     //create x_train
-//     int input_vector_length = 2;
-//     vector<vector<Value*> > X_train;
-//     for(int i = 0; i < 100; i++){
-//         vector<Value*> input;
-//         input.push_back(new Value(i));
-//         input.push_back(new Value(i));
-//         X_train.push_back(input);
-//     }
-//     //create y_train
-//         vector<vector<float> > Y_train;
-//     for(int i = 0; i < 100; i++){
-//         vector<float> input;
-//         input.push_back(0);
-//         input.push_back(1);
-//         Y_train.push_back(input);
-//     }
-//     Model m = * new Model(input_vector_length);
-//     m.add_layer("linear", 2, "");
-//     m.add_layer("linear", 5, "");
-//     m.add_layer("linear", 2, "");
-//     m.add_layer("linear", 2, "");
-//     m.add_layer("linear", 2, "");
-//     m.add_layer("linear", 2, "");
-//     m.add_layer("linear", 2, "");
-//     m.add_layer("softmax");
-//     m.compile(X_train[0]);
-//     m.layers.back()->visualizeGraph();
-//     //m.train(X_train, Y_train,5);
-//     return 0;
-//     /*
-//     Segfault occurs when visualizing the graph after doing 2 subsequent forward passes
-//         verify graph connectivity
-//         implement a model.compile and make the graph bidirectional
-//             -signficant refactoring 
-//     -add vector containing pointers to next nodes
-//         -DONE
-//     -update operators to add child nodes to the nextNode vector
-//         -DONE
-//     -update neuron.forward to forward pass results through the graph 
-//         -DONE
-//     -update linear.forward 
-//         -DONE
-//     -implement linear.compile
-//         -DONE
-//     -update model.compile to make sure nextNode vectors at layer outputs are properly populated
-//         -DONE
-//     -update model.forward and verify proper functionality for multi layer NN's
-//         -DONE
-//     -training loop
-//         -DONE
-//     Ok im gonna train MNIST using shahgrad. Need to implement sigmoid and softmax. I might have to implement some optimizers 
-//     -Sigmoid
-//         -DONE
-//     -update linear.compile to update layer outputs with softmax
-//         -DONE
-//     -softmax backward pass
-//         -DONE
-//     -categorical crossentropy
-//         -validate calculation
-//         -validate derivative calculation
-//         -DONE
-//     -Sigmoid
-//         -Ok theres a strange issue. L1.out is populated during linear.compile(), but then magically gets emptied when I try accessing that
-//         data member outside the class. Look closely at linear.compile and model.compile. Figure out why data members are being erased
-//         -try reading other data members outside the class. If its indeed being wiped, maybe its happening to all data members
-//         -Swap order of layers
-//             -Oh yea the problem def has to do with data members being wiped. probably a parent/child class issue
-//         -Fixed, forgot to add the "virtual" and "override" labels
-//     Other bugs fixed:
-//         -Moved softmax into its own layer
-//         -Fixed polymorphism issues
-//         -Softmax derivative and sigmoid calculations had typos
-//         -Gradients wouldnt flow past the sigmoid layer
-//         -Softmax would disconnect the expression graph
-//         -Categorical crossentropy derivative calculation had a mistake
-//     Ok now I can go ahead with MNIST
-//         -DONE
-//     Training is super slow. Need to parallelize. Main priority is to minimize codebase complexity and lines of code. 
-//         */
-//     Never mind, found a smaller MNIST with 10x10 images. Training speed is reasonable. Wont optimize performance as this library is 
-//         meant to optimize for verbosity and simplicity
-//      Validation loop
-//      Model save/load
-//      Clean up repo and try to reduce lines of code
-// };
