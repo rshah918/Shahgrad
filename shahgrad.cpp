@@ -1,7 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <numeric>
-#include<math.h>
+#include <math.h>
 #include <fstream>
 #include <unordered_set>
 #include <ctime>
@@ -102,6 +102,17 @@ class Value{
             this->next = out;
             return out;
         }
+        Value *relu(){
+            float out_value = this->data;
+            if(out_value < 0){
+                out_value = out_value * 0.00000001; //leaky relu to prevent vanishing gradient
+            }
+            Value * out = new Value(out_value);
+            out->operation = "relu";
+            out->prev.push_back(this);
+            this->next = out;
+            return out;
+        }
         void backward(){
             //calculate the child nodes gradients depending on the op
             if (this->operation=="+"){
@@ -120,6 +131,14 @@ class Value{
             }
             else if (this->operation == "sigmoid"){
                 this->prev[0]->grad += (this->data * (1-this->data)) * this->grad;
+            }
+            else if (this->operation == "relu"){
+                if (this->data > 0){
+                    this->prev[0]->grad += this->grad;
+                }
+                else{
+                    this->prev[0]->grad += this->grad * 0.00000001;
+                }
             }
         }
         void update_weight(){
@@ -288,6 +307,12 @@ class Neuron{
             }
             if (activation == "sigmoid"){
                 this->out =  this->out->sigmoid();
+            }
+            else if(activation == "tanh"){
+                this->out = this->out->tanh();
+            }
+            else if(activation == "relu"){
+                this->out = this->out->relu();
             }
         }
         void forward(){
