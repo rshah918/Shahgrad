@@ -24,82 +24,84 @@ class Value{
         string label;
         float grad = 0.00;
 
-        Value(float data){
+        Value(float data, string operation=""){
             this->data = data;
+            this->operation = operation;
         }
         Value* operator+(Value * operand) {
-            Value * out = new Value(this->data + operand->data); // Create an output node, store in heap so it doesnt get garbage collected
-            out->operation = "+";
-            // add operands to output node as child nodes
+            // Create an output node with the sum of current node and operand
+            Value* out = new Value(this->data + operand->data, "+");
+            // Add current node and operand as child nodes to the output
             out->prev.push_back(this);
             out->prev.push_back(operand);
-            //save reference of output node in the child node's vector of nextnodes
-            operand->next = out;
-            this->next = out;
+            // Save reference of output node in both child node's vector of next nodes
+            operand->next = this->next = out;
             return out;
         }
         Value *operator+=(Value* operand) {
             //This operation is needed to accumulate the sum of X nodes into 1 node, as opposed to creating an output node for each pair of operands
             this->operation = "+";
-            this->data = operand->data + this->data;
-            // add operands to output node as child nodes
+            this->data += operand->data;
+            // Add operand to current node as a child node
             this->prev.push_back(operand);
-            //save reference of output node in the child node's vector of nextnodes
+            // Save reference of current node in the operand's vector of next nodes
             operand->next = this;
             return this;
         }
 
         Value *operator*(Value* operand){
-            Value * out = new Value(this->data * operand->data);
-            out->operation = "*";
-            //add operands to output node as child nodes
+            // Create an output node with the product of current node and operand
+            Value* out = new Value(this->data * operand->data, "*");
+            // Add operands to output node as child nodes
             out->prev.push_back(this);
             out->prev.push_back(operand);
-            //save reference of output node in the child node's vector of nextnodes
-            operand->next = out;
-            this->next = out;
-            return  out;
+            // Save reference of output node in the child node's vector of next nodes
+            operand->next = this->next = out;
+            // Return the output node
+            return out;
         }
+
         void inorderTraversal() {
-            // Perform an inorder traversal to forward propagate inputs 
-                for (Value* child : prev) {
-                    child->inorderTraversal(); // Traverse left child
+            // Traverse left children
+            for (Value* child : prev) {
+                child->inorderTraversal();
+            }
+            // Perform operation based on the node's type
+            if (this->operation == "+") {
+                // Addition operation
+                this->data = 0;
+                for (Value* val : prev) {
+                    this->data += val->data;
                 }
-                // Forward propagate based on the operation
-                if (this->operation == "+") {
-                    this->data = 0;//zero out as its the additive identity
-                    for(int i = 0;i < this->prev.size();i++){
-                        this->data += prev[i]->data;
-                    }
+            } else if (this->operation == "*") {
+                // Multiplication operation
+                this->data = 1;
+                for (Value* val : prev) {
+                    this->data *= val->data;
                 }
-                if (this->operation == "*") {
-                    this->data = 1;//set to 1 as its the multiplicative identity
-                    for(int i = 0;i < this->prev.size();i++){
-                        this->data *= prev[i]->data;
-                    }
-                }
-                if (this->operation == "sigmoid"){
-                    this->data = 1/(1+pow(2.71828, -1*prev[0]->data));
-                }
-                if (this->operation == "relu"){
-                    float out_value = prev[0]->data;
-                    if (out_value < 0.0){
-                        out_value = 0.00000001 * out_value;
-                    }
-                    this->data = out_value;
-                }
-                if(this->operation == "tanh"){
-                    float x = prev[0]->data;
-                    this->data = (pow(2.718, (2.0*x)) - 1)/(pow(2.718,(2.0*x)) + 1);
-                }
-                if(this->operation == "exp"){
-                    float x = prev[0]->data;
-                    this->data = (pow(2.718, (x)));
-                }
-                for (Value* child : prev) {
-                    child->inorderTraversal(); // Traverse right child
-                }
+            } else if (this->operation == "sigmoid") {
+                // Sigmoid activation function
+                this->data = 1 / (1 + std::pow(2.71828, -prev[0]->data));
+            } else if (this->operation == "relu") {
+                // ReLU activation function
+                float out_value = prev[0]->data;
+                this->data = (out_value < 0.0) ? 0.00000001 * out_value : out_value;
+            } else if (this->operation == "tanh") {
+                // Tanh activation function
+                float x = prev[0]->data;
+                this->data = (std::pow(2.718, (2.0 * x)) - 1) / (std::pow(2.718, (2.0 * x)) + 1);
+            } else if (this->operation == "exp") {
+                // Exponential activation function
+                float x = prev[0]->data;
+                this->data = std::pow(2.718, (x));
+            }
+
+            // Traverse right children
+            for (Value* child : prev) {
+                child->inorderTraversal();
+            }
         }
+
         Value *tanh(){
             float x = this->data;
             //tanh
@@ -172,61 +174,40 @@ class Value{
                 this->data -= learning_rate * this->grad;
             }
         }
-        void backprop(){
-            //level order traversal through the expression graph to backprop gradients through the expression
-            //Karpathy overcomplicated things by using topological sort imo
+        void backprop() {
+            levelOrderTraversal(true);
+        }
+
+        void zero_grad() {
+            levelOrderTraversal(false);
+        }
+
+        void levelOrderTraversal(bool update_grad) {
+            /*
+            level order traversal through the expression graph to backprop gradients through the expression
+            Karpathy overcomplicated things by using topological sort imo
+            */
             vector<Value*> queue;
-            queue.insert(queue.begin(), this);
-            while (queue.size() > 0){
+            queue.push_back(this);
+
+            while (!queue.empty()) {
                 Value* root = queue[0];
-                for(int i = 0; i < root->prev.size(); i++){
-                    Value* child = root->prev[i];
-                    bool unique = true;
-                    //make sure child isnt already in the queue
-                    for (int j = 0; j < queue.size(); j++){
-                        if(queue[j] == child){
-                            unique= false;
-                            break;
-                        }
-                    }
-                    if(unique==true){
+                //use queue to nodes are processed in level-order
+                for (Value* child : root->prev) {
+                    if (find(queue.begin(), queue.end(), child) == queue.end()) {
                         queue.push_back(child);
                     }
                 }
-                //backward pass current node
-                root->backward();
-                //update weights
-                root->update_weight();
-                queue.erase(queue.begin() + 0);
-            }
-        }
-        void zero_grad(){
-            //recursively erase gradients through the expression. 
-            //Gradients are already initialized to zero, so no need to call this before training
-            vector<Value*> queue;
-            queue.insert(queue.begin(), this);
-            //level order traversal backwards through the expression graph
-            while (queue.size() > 0){
-                Value* root = queue[0];
-                for(int i = 0; i < root->prev.size(); i++){
-                    Value* child = root->prev[i];
-                    bool unique = true;
-                    //make sure child isnt already in the queue
-                    for (int j = 0; j < queue.size(); j++){
-                        if(queue[i] == child){
-                            unique= false;
-                            break;
-                        }
-                    }
-                    if(unique==true){
-                        queue.push_back(child);
-                    }
+                if (update_grad) {
+                    root->backward();
+                    root->update_weight();
+                } else {
+                    root->grad = 0.0;
                 }
-                //backward pass current node
-                root->grad = 0.0;
-                queue.erase(queue.begin() + 0);
+                queue.erase(queue.begin());
             }
         }
+
 
         void generateDotFile(const std::string& dotFilePath) {
             //This is a helper function for the mathematical expression graph visualizer. It generates a DOT file which gets converted to an image

@@ -1,11 +1,11 @@
-# Makefile for load_data.cpp
+# Makefile for train_mnist.cpp
 
 # Compiler
 CXX := g++
 # Compiler flags
 CXXFLAGS := -std=c++11
 # Source file
-SOURCE1 := load_data.cpp 
+SOURCE1 := train_mnist.cpp 
 SOURCE2 := ../shahgrad.cpp
 # Output executable
 OUTPUT := a.out
