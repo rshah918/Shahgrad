@@ -86,13 +86,11 @@ int main(){
     for(float i = 0; i < 1; i += 0.001){
         X_train.push_back(vector<Value*>(1, new Value(i)));
     }
-
     //create y_train
     vector<vector<float> > Y_train;
     for(float i = 0; i < 1; i += 0.001){
         Y_train.push_back(vector<float>(1, i * i));
     }
-    cout << Y_train[0].size() << endl;
     //create model
     Model m = * new Model(input_vector_length);
     m.add_layer("linear", 6, "exp");
