@@ -155,7 +155,6 @@ class Value{
                 this->prev[0]->grad += (this->data * (1-this->data)) * this->grad;
             }
             else if (this->operation == "exp"){
-                cout << "___" << endl;
                 this->prev[0]->grad += (this->data) * this->grad;
             }
             else if (this->operation == "relu"){
