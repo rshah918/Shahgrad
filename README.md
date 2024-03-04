@@ -95,7 +95,6 @@ Made this to better understand how pytorch/tensorflow work under the hood.
     for(float i = 0; i < 1; i += 0.001){
         Y_train.push_back(vector<float>(1, i * i));
     }
-    cout << Y_train[0].size() << endl;
     //create model
     Model m = * new Model(input_vector_length);
     m.add_layer("linear", 6, "exp");
@@ -120,4 +119,5 @@ Made this to better understand how pytorch/tensorflow work under the hood.
 
 <img width="958" alt="Screenshot 2024-03-03 at 7 16 50 PM" src="https://github.com/rshah918/Shahgrad/assets/20956909/5bd3708a-f412-415d-b5cd-8608bb215365">
 
+<img width="320" alt="Screenshot 2024-03-03 at 7 21 36 PM" src="https://github.com/rshah918/Shahgrad/assets/20956909/af1a5efb-13a6-4a1e-9be5-f4ab398f20d7">
 
