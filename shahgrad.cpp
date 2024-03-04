@@ -81,6 +81,21 @@ class Value{
                 if (this->operation == "sigmoid"){
                     this->data = 1/(1+pow(2.71828, -1*prev[0]->data));
                 }
+                if (this->operation == "relu"){
+                    float out_value = prev[0]->data;
+                    if (out_value < 0.0){
+                        out_value = 0.00000001 * out_value;
+                    }
+                    this->data = out_value;
+                }
+                if(this->operation == "tanh"){
+                    float x = prev[0]->data;
+                    this->data = (pow(2.718, (2.0*x)) - 1)/(pow(2.718,(2.0*x)) + 1);
+                }
+                if(this->operation == "exp"){
+                    float x = prev[0]->data;
+                    this->data = (pow(2.718, (x)));
+                }
                 for (Value* child : prev) {
                     child->inorderTraversal(); // Traverse right child
                 }
@@ -98,6 +113,13 @@ class Value{
         Value *sigmoid(){
             Value * out = new Value(1/(1+pow(2.71828, -1*this->data)));
             out->operation = "sigmoid";
+            out->prev.push_back(this);
+            this->next = out;
+            return out;
+        }
+         Value *exp(){
+            Value * out = new Value((pow(2.71828, this->data)));
+            out->operation = "exp";
             out->prev.push_back(this);
             this->next = out;
             return out;
@@ -131,6 +153,12 @@ class Value{
             }
             else if (this->operation == "sigmoid"){
                 this->prev[0]->grad += (this->data * (1-this->data)) * this->grad;
+            }
+            else if (this->operation == "exp"){
+                cout << this->grad << endl;
+                cout << this->data << endl;
+                cout << "___" << endl;
+                this->prev[0]->grad += (this->data) * this->grad;
             }
             else if (this->operation == "relu"){
                 if (this->data > 0){
@@ -313,6 +341,9 @@ class Neuron{
             }
             else if(activation == "relu"){
                 this->out = this->out->relu();
+            }
+            else if(activation == "exp"){
+                this->out = this->out->exp();
             }
         }
         void forward(){

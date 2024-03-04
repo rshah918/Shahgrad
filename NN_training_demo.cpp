@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <random>
+#include <cstdlib>
 #include "shahgrad.cpp"
 using namespace std;
 
@@ -77,19 +78,19 @@ void linear_layer_demo(){
 
 int main(){
     /*
-    Demo that trains a small neural network to learn an exp function.
+    Demo that trains a small neural network to fit against y=x^2 .
     */
      //create x_train
     int input_vector_length = 1;
     vector<vector<Value*> > X_train;
-    for(int i = 0; i < 1000; i++){
+    for(float i = 0; i < 1; i=i+0.001){
         vector<Value*> input;
         input.push_back(new Value(i));
         X_train.push_back(input);
     }
     //create y_train
     vector<vector<float> > Y_train;
-    for(int i = 0; i < 1000; i++){
+    for(float i = 0; i < 1; i=i+0.001){
         vector<float> input;
         input.push_back(i * i);
         cout << input[0] << endl;
@@ -97,11 +98,19 @@ int main(){
     }
     //create model
     Model m = * new Model(input_vector_length);
-    m.add_layer("linear", 1, "");
-    m.add_layer("linear", 1, "");
+    m.add_layer("linear", 6, "exp");
+    m.add_layer("linear", 1, "exp");
     m.compile(X_train[0]);
     //train and visualize
-    m.train(X_train, Y_train,40, learning_rate = 0.0000000001, "mean_squared_error"); //disgustingly low lr, results in exploding grad otherwise
+    m.train(X_train, Y_train,30, learning_rate = 0.001, "mean_squared_error");
+    //forward pass entire training set and write to a file. Then, plot NN output against expected output
+    std::ofstream outputFile("output_values.txt");
     m.layers.back()->visualizeGraph();
+    for(int i=1;i<X_train.size();i++){
+        m.forward(X_train[i]);
+        outputFile << m.outputs[0]->data << "\n";
+    }
+    outputFile.close();
+    system("python3 plot.py");
     return 0;
 }
